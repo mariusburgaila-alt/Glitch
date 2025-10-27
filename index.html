@@ -17,15 +17,12 @@
     }
     .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-    .brand{
-      font-weight:800;letter-spacing:.5px;font-size:22px;position:relative;
-    }
+    .brand{font-weight:800;letter-spacing:.5px;font-size:22px;position:relative}
     .brand::after{
       content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px;
       background:linear-gradient(90deg,var(--accent),transparent 60%,var(--accent2));
       filter:drop-shadow(0 0 6px #6ee7ff80);
-      animation:scan 2.5s linear infinite;
-      background-size:200% 100%;
+      animation:scan 2.5s linear infinite; background-size:200% 100%;
     }
     @keyframes scan{from{background-position:200% 0} to{background-position:-50% 0}}
     nav{display:flex;gap:8px;flex-wrap:wrap}
@@ -65,6 +62,7 @@
     .ai{background:#151b2c;border:1px solid #20263a}
     footer{margin-top:16px;color:#90a0b8;font-size:13px}
     code{background:#101828;border:1px solid #1f2a44;padding:2px 6px;border-radius:6px}
+    select{background:#0f1422;border:1px solid #2a3554;color:var(--txt);padding:8px 10px;border-radius:10px}
   </style>
 </head>
 <body>
@@ -104,31 +102,56 @@
 
     <!-- CHAT -->
     <section id="chat" class="panel hidden">
-      <h2>/chat — AI link coming soon</h2>
+      <h2 class="row" style="justify-content:space-between">
+        <span>/chat — AI link</span>
+        <span class="row">
+          <label for="modelPick" class="muted" style="font-size:14px">Model:</label>
+          <select id="modelPick">
+            <option value="gpt-4o-mini" selected>Fast (4o-mini)</option>
+            <option value="gpt-5">Deep (GPT-5)</option>
+          </select>
+        </span>
+      </h2>
       <div class="chatlog" id="chatlog" aria-live="polite"></div>
       <div class="spacer"></div>
       <div class="row">
         <input id="chatInput" type="text" placeholder="Type a message…">
         <button id="sendChat">Send</button>
       </div>
-      <footer>Security note: you’ll call the OpenAI API from a tiny server (Vercel/Netlify). <strong>Never</strong> embed your API key in this page.</footer>
+      <footer>
+        Security note: calls go through your own proxy at <code>/api/chat</code>. Never embed your API key in this page.
+        <div class="muted" id="apiHint"></div>
+      </footer>
     </section>
 
     <!-- UPLINK -->
     <section id="uplink" class="panel hidden">
       <h2>/uplink</h2>
-      <p class="muted">This will host your API proxy + settings. We’ll wire it up after you deploy.</p>
+      <p class="muted">This will host your API proxy + settings. Steps you already did / will do:</p>
       <ul class="muted">
-        <li>Create a serverless function (Vercel) at <code>/api/chat</code>.</li>
-        <li>Frontend posts JSON {messages:[...]}; server adds your API key and forwards to OpenAI.</li>
+        <li>Deploy repo to Vercel. Add env var <code>OPENAI_API_KEY</code>.</li>
+        <li>Create <code>api/chat.js</code> (the proxy). Done once.</li>
+        <li>Frontend posts JSON to <code>/api/chat</code>.</li>
       </ul>
     </section>
 
-    <footer class="muted">v0.1 — stored locally in your browser (no account). You can safely experiment.</footer>
+    <footer class="muted">v0.2 — local data only (for now). Experiment freely.</footer>
   </div>
 
   <script>
-    // ---- simple router
+    // -------------- CONFIG: where is your API?
+    // If you're viewing on Vercel, keep API_BASE = '' (same origin).
+    // If you're viewing on GitHub Pages, set API_BASE to your Vercel URL.
+    const API_BASE = location.hostname.endsWith('vercel.app')
+      ? ''                                   // same origin on Vercel
+      : 'https://REPLACE-ME.vercel.app';     // ← change to your Vercel URL after deploy
+
+    // Show a tiny hint for you:
+    (function(){ const el=document.getElementById('apiHint');
+      el.textContent = 'API base: ' + (API_BASE || '(same origin)');
+    })();
+
+    // -------------- simple router
     const tabs=[...document.querySelectorAll('.tab')];
     const views=['home','todo','chat','uplink'];
     const show=(id)=>{views.forEach(v=>{
@@ -138,7 +161,7 @@
     tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
     show(location.hash?.replace('#','')||'home');
 
-    // ---- 22-day challenge
+    // -------------- 22-day challenge
     const DAY_MAX=22;
     const elBar=document.getElementById('bar');
     const elTag=document.getElementById('dayTag');
@@ -155,9 +178,7 @@
       elBar.style.width=Math.min((day-1)/DAY_MAX*100,100)+'%';
       elTag.textContent=`— Day ${day}/${DAY_MAX}`;
     }
-    function todayKey(){
-      const d=new Date(); return d.toISOString().slice(0,10);
-    }
+    function todayKey(){ const d=new Date(); return d.toISOString().slice(0,10); }
     document.getElementById('markDone').onclick=()=>{
       const s=getState();
       if(s.last===todayKey()) return alert("Already marked today.");
@@ -167,7 +188,7 @@
     document.getElementById('resetChallenge').onclick=()=>{ if(confirm('Reset challenge?')) setState(1,null); };
     renderChallenge();
 
-    // ---- TODO (localStorage)
+    // -------------- TODO (localStorage)
     const listEl=document.getElementById('taskList');
     const statsEl=document.getElementById('todoStats');
     const inputEl=document.getElementById('taskInput');
@@ -198,16 +219,41 @@
     inputEl.addEventListener('keydown',e=>{ if(e.key==='Enter') addTask(); });
     renderTasks();
 
-    // ---- Chat placeholder (no API yet)
+    // -------------- Chat via your Vercel proxy
     const chatlog=document.getElementById('chatlog');
     const chatInput=document.getElementById('chatInput');
+    const modelPick=document.getElementById('modelPick');
+    const chatHistory = [];
+
     document.getElementById('sendChat').onclick=sendChat;
     chatInput.addEventListener('keydown',e=>{ if(e.key==='Enter') sendChat(); });
-    function pushMsg(txt,who){ const b=document.createElement('div'); b.className='msg '+who; b.textContent=txt; chatlog.appendChild(b); chatlog.scrollTop=chatlog.scrollHeight; }
-    function sendChat(){
-      const msg=chatInput.value.trim(); if(!msg) return;
+
+    function pushMsg(txt,who){
+      const b=document.createElement('div'); b.className='msg '+who; b.textContent=txt;
+      chatlog.appendChild(b); chatlog.scrollTop=chatlog.scrollHeight;
+    }
+
+    async function sendChat(){
+      const msg = chatInput.value.trim(); if(!msg) return;
       pushMsg(msg,'me'); chatInput.value='';
-      setTimeout(()=>pushMsg('API proxy not set yet. We’ll route this to OpenAI soon.','ai'),150);
+      chatHistory.push({ role:'user', content: msg });
+
+      try{
+        const r = await fetch(`${API_BASE}/api/chat`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'x-model': modelPick.value || 'gpt-4o-mini' },
+          body: JSON.stringify({
+            system: "You are GLITCH, a focused, motivating life-sim copilot. Keep replies concise and practical.",
+            messages: chatHistory
+          })
+        });
+        const {content,error,detail} = await r.json();
+        if(error){ pushMsg(`Error: ${error}${detail?' — '+detail:''}`,'ai'); return; }
+        pushMsg(content,'ai');
+        chatHistory.push({ role:'assistant', content });
+      }catch(e){
+        pushMsg('Network error.', 'ai');
+      }
     }
   </script>
 </body>
