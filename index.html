@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Glitch — Life Sim</title>
+  <style>
+    :root{
+      --bg:#0b0d12; --panel:#111521; --muted:#9aa3b2; --txt:#e7ecf3; --accent:#6ee7ff; --accent2:#a78bfa; --danger:#ef4444;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;background:radial-gradient(1000px 400px at 20% -10%,#131a2a 0%,#0b0d12 60%,#0b0d12 100%); color:var(--txt);
+      font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+    }
+    .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .brand{
+      font-weight:800;letter-spacing:.5px;font-size:22px;position:relative;
+    }
+    .brand::after{
+      content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px;
+      background:linear-gradient(90deg,var(--accent),transparent 60%,var(--accent2));
+      filter:drop-shadow(0 0 6px #6ee7ff80);
+      animation:scan 2.5s linear infinite;
+      background-size:200% 100%;
+    }
+    @keyframes scan{from{background-position:200% 0} to{background-position:-50% 0}}
+    nav{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{
+      background:#0f1422;border:1px solid #20263a;color:var(--txt);padding:10px 14px;border-radius:12px;cursor:pointer;
+      transition:.15s transform,.15s background,.15s border;
+    }
+    .tab:hover{transform:translateY(-1px);border-color:#2a3554}
+    .tab.active{background:linear-gradient(180deg,#161d30,#0f1628);border-color:#2d3a60}
+    .panel{
+      background:linear-gradient(180deg,#0f1422,#0c121d); border:1px solid #1e273f; border-radius:var(--radius);
+      padding:18px; box-shadow:0 10px 40px #0008;
+    }
+    .hidden{display:none}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    input[type=text], textarea{
+      background:#0b1020;border:1px solid #1e273f;color:var(--txt);border-radius:10px;padding:10px 12px;width:100%;
+      outline:none; transition:.15s border;
+    }
+    textarea{min-height:80px;resize:vertical}
+    input[type=text]:focus, textarea:focus{border-color:#2c3b63}
+    button{
+      background:linear-gradient(180deg,#1b2a45,#15243d); color:#eaf6ff; border:1px solid #2a3554; border-radius:10px;
+      padding:10px 14px; cursor:pointer; transition:.15s transform,.15s opacity,.15s border;
+    }
+    button:hover{transform:translateY(-1px)}
+    .list{margin-top:12px}
+    .todo{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #1b2540;border-radius:10px;margin-bottom:8px;background:#0b1020}
+    .todo.done{opacity:.6;text-decoration:line-through}
+    .spacer{height:12px}
+    .progress{height:10px;border-radius:99px;background:#0b1020;border:1px solid #1e273f;overflow:hidden}
+    .bar{height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .25s}
+    .chatlog{max-height:320px;overflow:auto;border:1px solid #1e273f;border-radius:10px;padding:10px;background:#0b1020}
+    .msg{padding:8px 10px;border-radius:10px;margin:6px 0;max-width:80%}
+    .me{background:#17243a;margin-left:auto}
+    .ai{background:#151b2c;border:1px solid #20263a}
+    footer{margin-top:16px;color:#90a0b8;font-size:13px}
+    code{background:#101828;border:1px solid #1f2a44;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">GLITCH // Personal Sim</div>
+      <nav>
+        <button class="tab active" data-view="home">Home</button>
+        <button class="tab" data-view="todo">/todo</button>
+        <button class="tab" data-view="chat">/chat</button>
+        <button class="tab" data-view="uplink">/uplink</button>
+      </nav>
+    </header>
+
+    <!-- HOME -->
+    <section id="home" class="panel">
+      <h2>Daily Challenge <span id="dayTag" class="muted"></span></h2>
+      <p class="muted">22-Day streak to reboot the system. Click once per day.</p>
+      <div class="progress" aria-label="progress"><div id="bar" class="bar"></div></div>
+      <div class="spacer"></div>
+      <div class="row">
+        <button id="markDone">Mark Today Done</button>
+        <button id="resetChallenge" title="Reset to day 1" style="border-color:#3a2644">Reset</button>
+      </div>
+    </section>
+
+    <!-- TODO -->
+    <section id="todo" class="panel hidden">
+      <h2>/todo</h2>
+      <div class="row">
+        <input id="taskInput" type="text" placeholder="Add a task and press Enter or +">
+        <button id="addTask">+</button>
+      </div>
+      <div class="list" id="taskList"></div>
+      <p class="muted" id="todoStats"></p>
+    </section>
+
+    <!-- CHAT -->
+    <section id="chat" class="panel hidden">
+      <h2>/chat — AI link coming soon</h2>
+      <div class="chatlog" id="chatlog" aria-live="polite"></div>
+      <div class="spacer"></div>
+      <div class="row">
+        <input id="chatInput" type="text" placeholder="Type a message…">
+        <button id="sendChat">Send</button>
+      </div>
+      <footer>Security note: you’ll call the OpenAI API from a tiny server (Vercel/Netlify). <strong>Never</strong> embed your API key in this page.</footer>
+    </section>
+
+    <!-- UPLINK -->
+    <section id="uplink" class="panel hidden">
+      <h2>/uplink</h2>
+      <p class="muted">This will host your API proxy + settings. We’ll wire it up after you deploy.</p>
+      <ul class="muted">
+        <li>Create a serverless function (Vercel) at <code>/api/chat</code>.</li>
+        <li>Frontend posts JSON {messages:[...]}; server adds your API key and forwards to OpenAI.</li>
+      </ul>
+    </section>
+
+    <footer class="muted">v0.1 — stored locally in your browser (no account). You can safely experiment.</footer>
+  </div>
+
+  <script>
+    // ---- simple router
+    const tabs=[...document.querySelectorAll('.tab')];
+    const views=['home','todo','chat','uplink'];
+    const show=(id)=>{views.forEach(v=>{
+        document.getElementById(v).classList.toggle('hidden',v!==id);
+        document.querySelector(`.tab[data-view="${v}"]`).classList.toggle('active',v===id);
+    }); location.hash=id;}
+    tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+    show(location.hash?.replace('#','')||'home');
+
+    // ---- 22-day challenge
+    const DAY_MAX=22;
+    const elBar=document.getElementById('bar');
+    const elTag=document.getElementById('dayTag');
+    function getState(){
+      const s=JSON.parse(localStorage.getItem('glitch_challenge')||'{}');
+      return {day:s.day??1, last:s.last??null};
+    }
+    function setState(day,last){
+      localStorage.setItem('glitch_challenge',JSON.stringify({day,last}));
+      renderChallenge();
+    }
+    function renderChallenge(){
+      const {day}=getState();
+      elBar.style.width=Math.min((day-1)/DAY_MAX*100,100)+'%';
+      elTag.textContent=`— Day ${day}/${DAY_MAX}`;
+    }
+    function todayKey(){
+      const d=new Date(); return d.toISOString().slice(0,10);
+    }
+    document.getElementById('markDone').onclick=()=>{
+      const s=getState();
+      if(s.last===todayKey()) return alert("Already marked today.");
+      const next=Math.min(s.day+1,DAY_MAX);
+      setState(next, todayKey());
+    };
+    document.getElementById('resetChallenge').onclick=()=>{ if(confirm('Reset challenge?')) setState(1,null); };
+    renderChallenge();
+
+    // ---- TODO (localStorage)
+    const listEl=document.getElementById('taskList');
+    const statsEl=document.getElementById('todoStats');
+    const inputEl=document.getElementById('taskInput');
+    const key='glitch_tasks';
+
+    function readTasks(){ return JSON.parse(localStorage.getItem(key)||'[]'); }
+    function writeTasks(t){ localStorage.setItem(key,JSON.stringify(t)); renderTasks(); }
+    function renderTasks(){
+      const t=readTasks(); listEl.innerHTML='';
+      t.forEach((task,i)=>{
+        const row=document.createElement('div'); row.className='todo'+(task.done?' done':'');
+        row.innerHTML=`<input type="checkbox" ${task.done?'checked':''} aria-label="done">
+                       <div style="flex:1">${escapeHtml(task.text)}</div>
+                       <button title="delete" aria-label="delete">✕</button>`;
+        row.querySelector('input').onchange=(e)=>{ t[i].done=e.target.checked; writeTasks(t); };
+        row.querySelector('button').onclick=()=>{ t.splice(i,1); writeTasks(t); };
+        listEl.appendChild(row);
+      });
+      const left=t.filter(x=>!x.done).length;
+      statsEl.textContent = `${left} task${left!==1?'s':''} remaining · ${t.length} total`;
+    }
+    function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c])); }
+    function addTask(){
+      const v=inputEl.value.trim(); if(!v) return;
+      const t=readTasks(); t.unshift({text:v,done:false,ts:Date.now()}); writeTasks(t); inputEl.value='';
+    }
+    document.getElementById('addTask').onclick=addTask;
+    inputEl.addEventListener('keydown',e=>{ if(e.key==='Enter') addTask(); });
+    renderTasks();
+
+    // ---- Chat placeholder (no API yet)
+    const chatlog=document.getElementById('chatlog');
+    const chatInput=document.getElementById('chatInput');
+    document.getElementById('sendChat').onclick=sendChat;
+    chatInput.addEventListener('keydown',e=>{ if(e.key==='Enter') sendChat(); });
+    function pushMsg(txt,who){ const b=document.createElement('div'); b.className='msg '+who; b.textContent=txt; chatlog.appendChild(b); chatlog.scrollTop=chatlog.scrollHeight; }
+    function sendChat(){
+      const msg=chatInput.value.trim(); if(!msg) return;
+      pushMsg(msg,'me'); chatInput.value='';
+      setTimeout(()=>pushMsg('API proxy not set yet. We’ll route this to OpenAI soon.','ai'),150);
+    }
+  </script>
+</body>
+</html>
