@@ -16,7 +16,7 @@
   <style>
     html,body { background:#0B0B0C; color:#E4E4E7; }
     .card{ border:1px solid #27272a; background:rgba(9,9,11,.7); border-radius:1rem; }
-    .btn{ border:1px solid #3f3f46; padding:.5rem .75rem; border-radius:.5rem; }
+    .btn{ border:1px solid #3f3f46; padding:.5rem .75rem; border-radius:.5rem; transition: all 0.2s ease; }
     .btn:hover{ background:#18181b; }
     .btn-cta{ background:#34D399; color:#0B0B0C; border:none; }
     .btn-cta:hover{ filter:brightness(1.05); }
@@ -29,6 +29,58 @@
     .ambient-wrap { position:fixed; top:0; left:0; right:0; height:6px; background:#0b0b0c; z-index:50; }
     .ambient-fill { height:100%; width:0%; transition: width .5s ease; background:linear-gradient(90deg,#34D399,#86EFAC,#A78BFA); }
     body { padding-top: 10px; } /* small breathing room under the bar */
+
+    /* Task animations */
+    @keyframes slideIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(20px); } }
+    .task-item { animation: slideIn 0.3s ease; }
+    .task-removing { animation: slideOut 0.3s ease; }
+
+    /* Confetti */
+    @keyframes confetti-fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    .confetti { position: fixed; width: 10px; height: 10px; pointer-events: none; z-index: 100; animation: confetti-fall 3s linear forwards; }
+
+    /* Priority colors */
+    .priority-high { border-left: 3px solid #ef4444 !important; }
+    .priority-medium { border-left: 3px solid #f59e0b !important; }
+    .priority-low { border-left: 3px solid #3b82f6 !important; }
+
+    /* Tag styles */
+    .task-tag { background: #3f3f46; color: #a1a1aa; font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 0.25rem; margin-right: 0.25rem; display: inline-block; }
+
+    /* Drag and drop */
+    .dragging { opacity: 0.5; }
+    .drag-over { border-top: 2px solid #34D399 !important; }
+
+    /* Full screen focus mode */
+    .focus-fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0B0B0C;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Streak flame animation */
+    @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+    .streak-flame { animation: flicker 2s infinite; }
+
+    /* Mobile improvements */
+    @media (max-width: 768px) {
+      .card { padding: 0.75rem !important; }
+      .btn { padding: 0.4rem 0.6rem; font-size: 0.875rem; }
+      body { padding-top: 8px; }
+    }
   </style>
 </head>
 <body class="min-h-screen">
@@ -75,10 +127,16 @@
       const d=Math.max(0, daysBetween(startStr, todayStr)); return Math.max(1, Math.min(total, d+1));
     }
     const CORNER_DEFAULTS=[
-      {id:"cc-move",text:"Move 10 minutes (walk/Zone 2)",preset:true},
-      {id:"cc-breathe",text:"5 mindful breaths + one word",preset:true},
-      {id:"cc-build",text:"25-min build block (highest leverage)",preset:true},
-      {id:"cc-service",text:"1 micro-service (helpful ping)",preset:true},
+      {id:"cc-move",text:"Move 10 minutes (walk/Zone 2)",preset:true,priority:"medium"},
+      {id:"cc-breathe",text:"5 mindful breaths + one word",preset:true,priority:"high"},
+      {id:"cc-build",text:"25-min build block (highest leverage)",preset:true,priority:"high"},
+      {id:"cc-service",text:"1 micro-service (helpful ping)",preset:true,priority:"low"},
+    ];
+    const DEFAULT_TIMER_PRESETS = [
+      {name:"Quick",minutes:2},
+      {name:"Short",minutes:5},
+      {name:"Pomodoro",minutes:25},
+      {name:"Deep Work",minutes:50}
     ];
     function mergeCarryOver(todayTasks,yTasks){
       const undone=(yTasks||[]).filter(t=>!t.done); const merged=[...todayTasks];
@@ -86,6 +144,59 @@
       return merged;
     }
     function toggleById(list,id){ return list.map(x=>x.id===id?{...x,done:!x.done}:x); }
+
+    /* ---------------- confetti celebration ---------------- */
+    function triggerConfetti(){
+      const colors=["#34D399","#86EFAC","#A78BFA","#F472B6","#FBBF24","#60A5FA"];
+      const count=30;
+      for(let i=0;i<count;i++){
+        setTimeout(()=>{
+          const el=document.createElement("div");
+          el.className="confetti";
+          el.style.left=`${Math.random()*100}%`;
+          el.style.background=colors[Math.floor(Math.random()*colors.length)];
+          el.style.animationDelay=`${Math.random()*0.5}s`;
+          el.style.animationDuration=`${2+Math.random()*2}s`;
+          document.body.appendChild(el);
+          setTimeout(()=>el.remove(),5000);
+        },i*50);
+      }
+    }
+
+    /* ---------------- undo system ---------------- */
+    const UndoStack={
+      push(action,data){ const stack=safeGet("ng.undo",[]); stack.push({action,data,ts:Date.now()}); safeSet("ng.undo",stack.slice(-20)); window.dispatchEvent(new CustomEvent("ng:undo")); },
+      pop(){ const stack=safeGet("ng.undo",[]); const item=stack.pop(); safeSet("ng.undo",stack); window.dispatchEvent(new CustomEvent("ng:undo")); return item; },
+      use(){ const [has,setHas]=useState(()=>safeGet("ng.undo",[]).length>0); useEffect(()=>{ const h=()=>setHas(safeGet("ng.undo",[]).length>0); window.addEventListener("ng:undo",h); return ()=>window.removeEventListener("ng:undo",h); },[]); return has; }
+    };
+
+    /* ---------------- streak tracking ---------------- */
+    function computeStreak(){
+      const days=[];
+      for(let i=0;i<365;i++){
+        const d=new Date(); d.setDate(d.getDate()-i);
+        const key=ymd(d);
+        const tasks=safeGet(`ng.todo.${key}`,[]);
+        if(tasks.length===0) break;
+        const done=tasks.filter(t=>t.done).length;
+        const total=tasks.length;
+        if(total>0 && done/total>=0.5){ days.push(key); }else{ break; }
+      }
+      return days.length;
+    }
+    function getStreakData(maxDays=90){
+      const data=[];
+      for(let i=maxDays-1;i>=0;i--){
+        const d=new Date(); d.setDate(d.getDate()-i);
+        const key=ymd(d);
+        const tasks=safeGet(`ng.todo.${key}`,[]);
+        const total=tasks.length;
+        const done=tasks.filter(t=>t.done).length;
+        const pct=total>0?Math.round(done/total*100):0;
+        data.push({date:key,total,done,pct});
+      }
+      return data;
+    }
 
     /* ---------------- global error bus ---------------- */
     const GlobalErrors={
@@ -184,21 +295,35 @@
     function App(){
       const [route,goto]=useHashRoute();
       const [proactive,setProactive]=useLocalState("ng.proactive", false);
+      const hasUndo=UndoStack.use();
       ProgressBus.use(); // in case you want to read it later
+
+      function handleUndo(){
+        const item=UndoStack.pop();
+        if(!item) return;
+        if(item.action==='deleteTask'){
+          const {date,task}=item.data;
+          const tasks=safeGet(`ng.todo.${date}`,[]);
+          safeSet(`ng.todo.${date}`,[task,...tasks]);
+          window.dispatchEvent(new CustomEvent("ng:taskUpdate"));
+        }
+      }
 
       return (
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <div className="size-9 rounded-xl bg-gradient-to-br from-purple-600 via-fuchsia-500 to-emerald-400 grid place-items-center text-[11px] font-black">NG</div>
               <div className="text-zinc-200 font-semibold tracking-tight">Nice Glitch</div>
-              <span className="chip">v7 focus</span>
+              <span className="chip">v8 pro</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button className={`btn ${route==='dashboard'?'bg-zinc-800':''}`} onClick={()=>goto('dashboard')}>Dashboard</button>
               <button className={`btn ${route==='chat'?'bg-zinc-800':''}`} onClick={()=>goto('chat')}>Chat</button>
               <button className={`btn ${route==='stats'?'bg-zinc-800':''}`} onClick={()=>goto('stats')}>Stats</button>
+
+              {hasUndo && <button className="btn bg-purple-900/30 border-purple-700/50" onClick={handleUndo} title="Undo last action">↶ Undo</button>}
 
               <label className="inline-flex items-center gap-2 ml-2 text-sm text-zinc-400">
                 <input type="checkbox" className="accent-emerald-500" checked={!!proactive} onChange={e=>setProactive(e.target.checked)} />
@@ -220,21 +345,52 @@
 
     function Dashboard(){
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TodoCard />
-          <HintsCard />
-        </div>
+        <>
+          <StreakCard />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TodoCard />
+            <HintsCard />
+          </div>
+        </>
+      );
+    }
+
+    function StreakCard(){
+      const [streak,setStreak]=useState(0);
+      useEffect(()=>{ setStreak(computeStreak()); },[]);
+      useEffect(()=>{ const h=()=>setStreak(computeStreak()); window.addEventListener("ng:taskUpdate",h); return ()=>window.removeEventListener("ng:taskUpdate",h); },[]);
+
+      return (
+        <section className="card p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl streak-flame">🔥</div>
+              <div>
+                <div className="text-2xl font-bold text-emerald-400">{streak} day{streak!==1?'s':''}</div>
+                <div className="text-xs text-zinc-500">Current streak (50%+ completion)</div>
+              </div>
+            </div>
+            <div className="text-xs text-zinc-400">
+              Keep completing 50%+ of your daily tasks to maintain your streak!
+            </div>
+          </div>
+        </section>
       );
     }
 
     function HintsCard(){
       return (
         <section className="card p-4 space-y-3">
-          <div className="text-sm text-zinc-300 font-semibold">Shortcuts & Tips</div>
+          <div className="text-sm text-zinc-300 font-semibold">✨ Shortcuts & Tips</div>
           <ul className="text-sm list-disc pl-5 text-zinc-400 space-y-1">
-            <li>Click a task’s <span className="chip">2m</span>/<span className="chip">5m</span>/<span className="chip">25m</span> to start the timer + tone.</li>
-            <li>Progress bar on top fills as you complete tasks.</li>
-            <li>Use <span className="chip">Export .md</span> or <span className="chip">.json</span> for notes/backups.</li>
+            <li>Set task <span className="text-emerald-400">priority</span> (high/medium/low) and add <span className="text-purple-400">tags</span></li>
+            <li>Click timer presets to start focus mode with <span className="text-emerald-400">ambient tone</span></li>
+            <li><span className="text-emerald-400">Drag & drop</span> tasks to reorder them</li>
+            <li>Click task text to expand and add <span className="text-blue-400">notes</span></li>
+            <li>Complete tasks to trigger <span className="text-pink-400">confetti</span> celebration!</li>
+            <li>Use <span className="text-purple-400">↶ Undo</span> button to restore deleted tasks</li>
+            <li>Search tasks by text in the search box</li>
+            <li>Maintain 50%+ completion to keep your <span className="text-orange-400">🔥 streak</span> going</li>
           </ul>
         </section>
       );
@@ -246,28 +402,75 @@
       const [tasks,setTasks]=useLocalState(`ng.todo.${today}`,[]);
       const [newTask,setNewTask]=useState("");
       const [filter,setFilter]=useState("all");
+      const [searchText,setSearchText]=useState("");
+      const [expandedTask,setExpandedTask]=useState(null);
       const [challengeStart,setChallengeStart]=useState(getOrInitChallengeStart());
+      const [timerPresets,setTimerPresets]=useLocalState("ng.timerPresets",DEFAULT_TIMER_PRESETS);
+      const [breakReminder,setBreakReminder]=useLocalState("ng.breakReminder",true);
+      const [draggedTask,setDraggedTask]=useState(null);
 
       // Focus timer state
-      const [focus,setFocus]=useState({ running:false, taskId:null, taskText:"", startedAt:0, duration:0, remaining:0, paused:false, baseAt:0, volume:0.6 });
+      const [focus,setFocus]=useState({ running:false, fullscreen:false, taskId:null, taskText:"", startedAt:0, duration:0, remaining:0, paused:false, baseAt:0, volume:0.6 });
 
-      // init createdAt for older tasks
-      useEffect(()=>{ if((tasks||[]).some(t=>!t.createdAt)){ setTasks(ts=>ts.map(t=>t.createdAt?t:{...t,createdAt:Date.now()})); } },[]);
+      // init fields for older tasks
+      useEffect(()=>{
+        if((tasks||[]).some(t=>!t.createdAt || t.priority===undefined)){
+          setTasks(ts=>ts.map(t=>({
+            ...t,
+            createdAt:t.createdAt||Date.now(),
+            priority:t.priority||"medium",
+            tags:t.tags||[],
+            notes:t.notes||"",
+            timeTracked:t.timeTracked||0
+          })));
+        }
+      },[]);
 
       const stats=useMemo(()=>{ const total=tasks.length, done=tasks.filter(t=>t.done).length, open=total-done; const pct=total?Math.round(done/total*100):0; return {total,done,open,pct}; },[tasks]);
-      useEffect(()=>{ ProgressBus.set(stats.pct); },[stats.pct]); // update ambient bar
+      useEffect(()=>{ ProgressBus.set(stats.pct); window.dispatchEvent(new CustomEvent("ng:taskUpdate")); },[stats.pct]); // update ambient bar
 
       const challengeDay=useMemo(()=>computeChallengeDay(challengeStart, today),[challengeStart]);
 
-      function addTask(){ const t=newTask.trim(); if(!t) return; const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`; setTasks([{id,text:t,done:false,createdAt:Date.now()}, ...tasks]); setNewTask(""); }
-      function toggleTask(id){ setTasks(toggleById(tasks,id)); }
-      function removeTask(id){ setTasks(tasks.filter(x=>x.id!==id)); }
+      function addTask(){
+        const t=newTask.trim();
+        if(!t) return;
+        const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        setTasks([{id,text:t,done:false,createdAt:Date.now(),priority:"medium",tags:[],notes:"",timeTracked:0}, ...tasks]);
+        setNewTask("");
+      }
+      function toggleTask(id){
+        const task=tasks.find(t=>t.id===id);
+        if(task && !task.done){ triggerConfetti(); }
+        setTasks(toggleById(tasks,id));
+      }
+      function removeTask(id){
+        const task=tasks.find(t=>t.id===id);
+        if(task){ UndoStack.push("deleteTask",{date:today,task}); }
+        setTasks(tasks.filter(x=>x.id!==id));
+      }
+      function updateTask(id,updates){
+        setTasks(tasks.map(t=>t.id===id?{...t,...updates}:t));
+      }
+      function reorderTasks(fromIdx,toIdx){
+        const updated=[...tasks];
+        const [moved]=updated.splice(fromIdx,1);
+        updated.splice(toIdx,0,moved);
+        setTasks(updated);
+      }
       function clearDone(){ setTasks(tasks.filter(x=>!x.done)); }
-      function addCornerDefaults(){ const incoming=CORNER_DEFAULTS.filter(d=>!tasks.some(t=>t.id===d.id)).map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()})); setTasks([...incoming, ...tasks]); }
+      function addCornerDefaults(){
+        const incoming=CORNER_DEFAULTS.filter(d=>!tasks.some(t=>t.id===d.id)).map(d=>({
+          id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now(),
+          priority:d.priority||"medium",tags:[],notes:"",timeTracked:0
+        }));
+        setTasks([...incoming, ...tasks]);
+      }
       function carryOver(){ try{ const raw=localStorage.getItem(`ng.todo.${yesterday}`); if(!raw) return; const y=safeParse(raw,[]); setTasks(mergeCarryOver(tasks,y)); }catch{} }
       async function exportMarkdown(){ const md=[`# Nice Glitch — ${today} (Day ${challengeDay}/${CHALLENGE_TOTAL})`,`Progress: ${stats.pct}% (${stats.done}/${stats.total})`,"",...tasks.map(t=>`${t.done?"- [x]":"- [ ]"} ${t.text}`)].join("\n"); try{ await navigator.clipboard.writeText(md); alert("Copied Markdown."); }catch{ const blob=new Blob([md],{type:"text/markdown"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.md`; a.click(); URL.revokeObjectURL(url); } }
 
-      const filtered=tasks.filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done);
+      const filtered=tasks
+        .filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done)
+        .filter(t=>!searchText || t.text.toLowerCase().includes(searchText.toLowerCase()) || (t.tags||[]).some(tag=>tag.toLowerCase().includes(searchText.toLowerCase())));
 
       // ---- Timer logic ----
       useEffect(()=>{
@@ -278,6 +481,15 @@
             const rem = Math.max(0, f.duration - elapsed);
             if(rem<=0){
               FocusTone.stop();
+              // Track time
+              if(f.taskId){
+                const task=tasks.find(t=>t.id===f.taskId);
+                if(task){ updateTask(f.taskId,{timeTracked:(task.timeTracked||0)+Math.floor(f.duration/60)}); }
+              }
+              // Break reminder
+              if(breakReminder && f.duration>=1500){
+                setTimeout(()=>alert("Great focus session! Time for a 5-minute break."),500);
+              }
               return { ...f, running:false, remaining:0 };
             }
             return { ...f, remaining: rem };
@@ -288,9 +500,9 @@
 
       function startTimer(task, minutes){
         const dur = minutes*60;
-        setFocus({ running:true, taskId:task.id, taskText:task.text, startedAt:Date.now(), duration:dur, remaining:dur, paused:false, baseAt:Date.now(), volume:0.6 });
-        FocusTone.setVolume(0.006, 0.022); // subtle range
-        FocusTone.start(dur); // user click unlocks audio
+        setFocus({ running:true, fullscreen:false, taskId:task.id, taskText:task.text, startedAt:Date.now(), duration:dur, remaining:dur, paused:false, baseAt:Date.now(), volume:0.6 });
+        FocusTone.setVolume(0.006, 0.022);
+        FocusTone.start(dur);
       }
       function pauseTimer(){
         setFocus(f=>({ ...f, paused:true }));
@@ -299,33 +511,69 @@
       function resumeTimer(){
         setFocus(f=>{
           const now = Date.now();
-          const newDur = f.remaining;
-          return { ...f, paused:false, startedAt: now - (f.duration - f.remaining)*1000, duration:f.duration, remaining:newDur };
+          return { ...f, paused:false, startedAt: now - (f.duration - f.remaining)*1000 };
         });
         FocusTone.start(focus.remaining||1);
       }
       function cancelTimer(){
         FocusTone.stop();
-        setFocus(f=>({ ...f, running:false, paused:false, taskId:null }));
+        setFocus(f=>({ ...f, running:false, paused:false, fullscreen:false, taskId:null }));
       }
       function doneTimer(){
         FocusTone.stop();
-        if(focus.taskId){ setTasks(toggleById(tasks, focus.taskId)); }
-        setFocus(f=>({ ...f, running:false, paused:false, remaining:0, taskId:null }));
+        if(focus.taskId){
+          const task=tasks.find(t=>t.id===focus.taskId);
+          if(task){
+            const elapsed=Math.floor((Date.now()-focus.startedAt)/1000);
+            updateTask(focus.taskId,{timeTracked:(task.timeTracked||0)+Math.floor(elapsed/60)});
+            toggleTask(focus.taskId);
+          }
+        }
+        setFocus(f=>({ ...f, running:false, paused:false, fullscreen:false, remaining:0, taskId:null }));
+      }
+      function toggleFullscreen(){
+        setFocus(f=>({ ...f, fullscreen:!f.fullscreen }));
+      }
+
+      // Fullscreen mode render
+      if(focus.running && focus.fullscreen){
+        return (
+          <div className="focus-fullscreen">
+            <div className="text-center space-y-6 p-8">
+              <div className="text-6xl font-bold text-emerald-400 font-mono">
+                {String(Math.floor((focus.remaining||0)/60)).padStart(2,'0')}:{String((focus.remaining||0)%60).padStart(2,'0')}
+              </div>
+              <div className="text-2xl text-zinc-300">{focus.taskText}</div>
+              <div className="w-96 h-3 rounded-full bg-zinc-900 overflow-hidden mx-auto">
+                <div className="h-full bg-emerald-500 transition-all" style={{width:`${100*(1-(focus.remaining||0)/(focus.duration||1))}%`}}/>
+              </div>
+              <div className="flex items-center justify-center gap-4">
+                {!focus.paused ? <button className="btn" onClick={pauseTimer}>Pause</button> : <button className="btn" onClick={resumeTimer}>Resume</button>}
+                <button className="btn" onClick={doneTimer}>Mark Done</button>
+                <button className="btn" onClick={cancelTimer}>Cancel</button>
+                <button className="btn" onClick={toggleFullscreen}>Exit Fullscreen</button>
+              </div>
+            </div>
+          </div>
+        );
       }
 
       return (
         <section className="card p-5 space-y-4">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="text-sm font-semibold text-zinc-200">/todo — <span className="text-zinc-400">{today}</span></div>
-              <div className="text-[11px] text-zinc-500">Ambient bar = overall completion. Start a timer to get a subtle focus tone.</div>
+              <div className="text-[11px] text-zinc-500">Enhanced with priorities, tags, notes, search, drag & drop, and more!</div>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <button className="btn" onClick={addCornerDefaults}>Add Corner Defaults</button>
+              <button className="btn" onClick={addCornerDefaults}>Add Defaults</button>
               <button className="btn" onClick={carryOver}>Carry Over ⟲</button>
               <button className="btn" onClick={clearDone}>Clear Done</button>
               <button className="btn" onClick={exportMarkdown}>Export .md</button>
+              <label className="inline-flex items-center gap-1 text-xs text-zinc-400">
+                <input type="checkbox" className="accent-emerald-500" checked={breakReminder} onChange={e=>setBreakReminder(e.target.checked)} />
+                Break reminders
+              </label>
             </div>
           </div>
 
@@ -340,79 +588,157 @@
             </div>
           </div>
 
-          {/* Focus Timer Panel (well-placed, above list) */}
-          {focus.running && (
+          {/* Focus Timer Panel */}
+          {focus.running && !focus.fullscreen && (
             <div className="rounded-xl border border-emerald-700/50 bg-emerald-900/10 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm text-emerald-300 font-semibold truncate">
-                  Focus: {focus.taskText}
-                </div>
-                <div className="flex items-center gap-3 text-[12px] text-zinc-400">
+                <div className="text-sm text-emerald-300 font-semibold truncate">Focus: {focus.taskText}</div>
+                <div className="flex items-center gap-3 text-[12px] text-zinc-400 flex-wrap">
                   <span className="font-mono text-emerald-300 text-base">
-                    {String(Math.floor((focus.remaining||0)/60)).padStart(2,'0')}:
-                    {String((focus.remaining||0)%60).padStart(2,'0')}
+                    {String(Math.floor((focus.remaining||0)/60)).padStart(2,'0')}:{String((focus.remaining||0)%60).padStart(2,'0')}
                   </span>
-                  {!focus.paused ? (
-                    <button className="btn" onClick={pauseTimer}>Pause</button>
-                  ) : (
-                    <button className="btn" onClick={resumeTimer}>Resume</button>
-                  )}
+                  {!focus.paused ? <button className="btn" onClick={pauseTimer}>Pause</button> : <button className="btn" onClick={resumeTimer}>Resume</button>}
                   <button className="btn" onClick={doneTimer}>Mark done</button>
                   <button className="btn" onClick={cancelTimer}>Cancel</button>
+                  <button className="btn bg-purple-900/30" onClick={toggleFullscreen}>⛶ Fullscreen</button>
                 </div>
               </div>
               <div className="mt-3 w-full h-2 rounded-full bg-emerald-950/50 overflow-hidden">
-                <div className="h-full bg-emerald-500 transition-all"
-                     style={{width:`${100*(1-(focus.remaining||0)/(focus.duration||1))}%`}}/>
-              </div>
-              <div className="mt-2 text-[11px] text-zinc-500">
-                Subtle tone active during running timers. Adjust system volume if needed.
+                <div className="h-full bg-emerald-500 transition-all" style={{width:`${100*(1-(focus.remaining||0)/(focus.duration||1))}%`}}/>
               </div>
             </div>
           )}
 
-          {/* Add */}
-          <div className="flex gap-2">
-            <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }} placeholder="Add a task…" className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
+          {/* Add + Search */}
+          <div className="flex gap-2 flex-wrap">
+            <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }} placeholder="Add a task…" className="flex-1 min-w-[200px] rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
             <button className="btn-cta rounded-xl px-4" onClick={addTask}>Add</button>
+            <input value={searchText} onChange={e=>setSearchText(e.target.value)} placeholder="🔍 Search tasks or tags..." className="flex-1 min-w-[200px] rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
             {["all","open","done"].map(id=>(
               <button key={id} className={`btn ${filter===id?'border-emerald-500/60 bg-emerald-500/10 text-emerald-300':''}`} onClick={()=>setFilter(id)}>{id[0].toUpperCase()+id.slice(1)}</button>
             ))}
           </div>
 
-          {/* List (with quick timer starts) */}
-          <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+          {/* Task List */}
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
             {filtered.length===0 && (
               <div className="text-sm text-zinc-500 border border-dashed border-zinc-700 rounded-xl p-4">
-                No tasks here. Add one above, or <button className="underline ml-1" onClick={addCornerDefaults}>insert Corner Defaults</button>.
+                {searchText?"No tasks match your search.":"No tasks here. Add one above!"}
               </div>
             )}
-            {filtered.map(t=>(
-              <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input type="checkbox" className="size-4 accent-emerald-500" checked={!!t.done} onChange={()=>toggleTask(t.id)} />
-                  <span className={`text-sm ${t.preset?"text-zinc-100":"text-zinc-300"} ${t.done?"line-through text-zinc-500":""}`}>{t.text}</span>
-                </label>
-                <div className="flex items-center gap-2 text-[11px]">
-                  {!t.done && (
-                    <>
-                      <button className="btn px-2 py-1" onClick={()=>startTimer(t,2)}>2m</button>
-                      <button className="btn px-2 py-1" onClick={()=>startTimer(t,5)}>5m</button>
-                      <button className="btn px-2 py-1" onClick={()=>startTimer(t,25)}>25m</button>
-                    </>
-                  )}
-                  {!t.preset && (
-                    <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={()=>removeTask(t.id)}>remove</button>
-                  )}
-                </div>
-              </div>
+            {filtered.map((t,idx)=>(
+              <TaskItem
+                key={t.id}
+                task={t}
+                index={idx}
+                onToggle={()=>toggleTask(t.id)}
+                onRemove={()=>removeTask(t.id)}
+                onUpdate={(updates)=>updateTask(t.id,updates)}
+                onStartTimer={(mins)=>startTimer(t,mins)}
+                onDragStart={()=>setDraggedTask(idx)}
+                onDragOver={(e)=>{ e.preventDefault(); }}
+                onDrop={()=>{ if(draggedTask!==null && draggedTask!==idx){ reorderTasks(draggedTask,idx); setDraggedTask(null); }}}
+                expanded={expandedTask===t.id}
+                onToggleExpand={()=>setExpandedTask(expandedTask===t.id?null:t.id)}
+                timerPresets={timerPresets}
+              />
             ))}
           </div>
         </section>
+      );
+    }
+
+    /* ---------------- Task Item Component ---------------- */
+    function TaskItem({task,index,onToggle,onRemove,onUpdate,onStartTimer,onDragStart,onDragOver,onDrop,expanded,onToggleExpand,timerPresets}){
+      const [newTag,setNewTag]=useState("");
+      const priorityClass=task.priority?`priority-${task.priority}`:"";
+
+      function addTag(){
+        const tag=newTag.trim();
+        if(!tag || (task.tags||[]).includes(tag)) return;
+        onUpdate({tags:[...(task.tags||[]),tag]});
+        setNewTag("");
+      }
+      function removeTag(tag){
+        onUpdate({tags:(task.tags||[]).filter(t=>t!==tag)});
+      }
+
+      return (
+        <div
+          className={`task-item rounded-xl border border-zinc-800 bg-zinc-900/60 ${priorityClass}`}
+          draggable={!task.done}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+        >
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <label className="flex items-center gap-3 cursor-pointer select-none flex-1 min-w-0">
+              <input type="checkbox" className="size-4 accent-emerald-500 flex-shrink-0" checked={!!task.done} onChange={onToggle} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`text-sm cursor-pointer ${task.preset?"text-zinc-100":"text-zinc-300"} ${task.done?"line-through text-zinc-500":""}`}
+                    onClick={onToggleExpand}
+                  >
+                    {task.text}
+                  </span>
+                  {(task.tags||[]).map(tag=>(
+                    <span key={tag} className="task-tag">{tag}</span>
+                  ))}
+                  {(task.timeTracked||0)>0 && <span className="text-[10px] text-zinc-500">⏱ {task.timeTracked}m</span>}
+                </div>
+              </div>
+            </label>
+            <div className="flex items-center gap-2 text-[11px] flex-shrink-0">
+              {!task.done && timerPresets.map(preset=>(
+                <button key={preset.name} className="btn px-2 py-1" onClick={()=>onStartTimer(preset.minutes)} title={preset.name}>{preset.minutes}m</button>
+              ))}
+              {!task.preset && <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={onRemove}>✕</button>}
+            </div>
+          </div>
+
+          {expanded && (
+            <div className="px-3 pb-3 space-y-2 border-t border-zinc-800 pt-2 mt-1">
+              <div>
+                <label className="text-[11px] text-zinc-400 mb-1 block">Priority</label>
+                <div className="flex gap-2">
+                  {["high","medium","low"].map(p=>(
+                    <button key={p} className={`btn px-2 py-1 ${task.priority===p?'bg-zinc-700':''}`} onClick={()=>onUpdate({priority:p})}>{p[0].toUpperCase()+p.slice(1)}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-zinc-400 mb-1 block">Tags</label>
+                <div className="flex gap-2 flex-wrap items-center">
+                  {(task.tags||[]).map(tag=>(
+                    <span key={tag} className="task-tag cursor-pointer" onClick={()=>removeTag(tag)}>{tag} ✕</span>
+                  ))}
+                  <input
+                    value={newTag}
+                    onChange={e=>setNewTag(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") addTag(); }}
+                    placeholder="Add tag..."
+                    className="text-xs rounded bg-black/40 border border-zinc-700 px-2 py-1 outline-none w-24"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-zinc-400 mb-1 block">Notes</label>
+                <textarea
+                  value={task.notes||""}
+                  onChange={e=>onUpdate({notes:e.target.value})}
+                  placeholder="Add notes..."
+                  className="w-full text-xs rounded-lg bg-black/40 border border-zinc-700 px-2 py-1 outline-none resize-none"
+                  rows="2"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -462,12 +788,16 @@
       );
     }
 
-    /* ---------------- Stats (unchanged) ---------------- */
+    /* ---------------- Stats with Charts & Insights ---------------- */
     function StatsScreen({onBack}){
       const [hideZero,setHideZero]=useLocalState("ng.stats.hideZero", true);
+      const [view,setView]=useState("overview");
       const [rows,setRows]=useState(()=>scanDays(hideZero));
+      const streakData=useMemo(()=>getStreakData(90),[]);
+
       function refresh(){ setRows(scanDays(hideZero)); }
       useEffect(()=>{ setRows(scanDays(hideZero)); },[hideZero]);
+
       function exportCSV(){
         const head=["date","total","done","pct"];
         const body=rows.map(r=>[r.date,r.total,r.done,`${r.pct}`]);
@@ -475,51 +805,151 @@
         const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
         const a=document.createElement("a"); a.href=url; a.download="ng-stats.csv"; a.click(); URL.revokeObjectURL(url);
       }
-      return (
-        <section className="card p-5 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-zinc-200">/stats — Daily completion</div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-zinc-400 inline-flex items-center gap-2">
-                <input type="checkbox" className="accent-emerald-500" checked={!!hideZero} onChange={e=>setHideZero(e.target.checked)} />
-                Hide zero-task days
-              </label>
-              <button className="btn" onClick={refresh}>Refresh</button>
-              <button className="btn" onClick={exportCSV}>Export CSV</button>
-              <button className="btn" onClick={onBack}>Back</button>
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-zinc-800 overflow-hidden">
-            <div className="max-h-[520px] overflow-auto">
-              <table className="ng text-sm">
-                <thead>
-                  <tr className="text-zinc-400">
-                    <th className="text-left">Date</th>
-                    <th className="text-right">Total</th>
-                    <th className="text-right">Done</th>
-                    <th className="text-right">% Done</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(r=>(
-                    <tr key={r.date}>
-                      <td className="text-zinc-200">{r.date}</td>
-                      <td className="text-right">{r.total}</td>
-                      <td className="text-right">{r.done}</td>
-                      <td className="text-right">{r.pct}%</td>
-                    </tr>
-                  ))}
-                  {rows.length===0 && (
-                    <tr><td colSpan="4" className="text-center py-6 text-zinc-500">No data yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
+      // Compute insights
+      const insights=useMemo(()=>{
+        if(rows.length===0) return null;
+        const avgCompletion=Math.round(rows.reduce((sum,r)=>sum+r.pct,0)/rows.length);
+        const totalTasks=rows.reduce((sum,r)=>sum+r.total,0);
+        const totalDone=rows.reduce((sum,r)=>sum+r.done,0);
+        const bestDay=rows.reduce((best,r)=>r.pct>best.pct?r:best,rows[0]);
+        const streak=computeStreak();
+
+        // Time tracking
+        let totalMinutes=0;
+        try{
+          for(let i=0;i<localStorage.length;i++){
+            const k=localStorage.key(i);
+            if(!k?.startsWith("ng.todo.")) continue;
+            const tasks=safeGet(k,[]);
+            tasks.forEach(t=>{ totalMinutes+=(t.timeTracked||0); });
+          }
+        }catch{}
+        const totalHours=Math.round(totalMinutes/60*10)/10;
+
+        return {avgCompletion,totalTasks,totalDone,bestDay,streak,totalHours};
+      },[rows]);
+
+      return (
+        <div className="space-y-6">
+          <section className="card p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-sm font-semibold text-zinc-200">/stats — Analytics & Insights</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button className={`btn ${view==='overview'?'bg-zinc-700':''}`} onClick={()=>setView('overview')}>Overview</button>
+                <button className={`btn ${view==='heatmap'?'bg-zinc-700':''}`} onClick={()=>setView('heatmap')}>Heatmap</button>
+                <button className={`btn ${view==='table'?'bg-zinc-700':''}`} onClick={()=>setView('table')}>Table</button>
+                <label className="text-sm text-zinc-400 inline-flex items-center gap-2">
+                  <input type="checkbox" className="accent-emerald-500" checked={!!hideZero} onChange={e=>setHideZero(e.target.checked)} />
+                  Hide zero days
+                </label>
+                <button className="btn" onClick={refresh}>Refresh</button>
+                <button className="btn" onClick={exportCSV}>Export CSV</button>
+                <button className="btn" onClick={onBack}>Back</button>
+              </div>
             </div>
-          </div>
-        </section>
+
+            {view==='overview' && insights && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                  <div className="text-2xl font-bold text-emerald-400">{insights.avgCompletion}%</div>
+                  <div className="text-xs text-zinc-500">Avg Completion</div>
+                </div>
+                <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                  <div className="text-2xl font-bold text-purple-400">{insights.totalDone}/{insights.totalTasks}</div>
+                  <div className="text-xs text-zinc-500">Total Tasks Done</div>
+                </div>
+                <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                  <div className="text-2xl font-bold text-orange-400">{insights.streak} 🔥</div>
+                  <div className="text-xs text-zinc-500">Current Streak</div>
+                </div>
+                <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                  <div className="text-2xl font-bold text-blue-400">{insights.totalHours}h</div>
+                  <div className="text-xs text-zinc-500">Time Tracked</div>
+                </div>
+              </div>
+            )}
+
+            {view==='overview' && insights && (
+              <div className="space-y-3">
+                <div className="text-sm text-zinc-300 font-semibold">Productivity Insights</div>
+                <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-900/20 to-purple-900/20 border border-zinc-800">
+                  <div className="text-sm text-zinc-300">🏆 Your best day was <span className="text-emerald-400 font-semibold">{insights.bestDay.date}</span> with <span className="text-emerald-400 font-semibold">{insights.bestDay.pct}%</span> completion ({insights.bestDay.done}/{insights.bestDay.total} tasks)</div>
+                </div>
+                <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                  <div className="text-sm text-zinc-300">📊 You've completed <span className="text-purple-400 font-semibold">{insights.totalDone}</span> tasks across <span className="text-purple-400 font-semibold">{rows.length}</span> days</div>
+                </div>
+                {insights.totalHours>0 && (
+                  <div className="p-4 rounded-xl bg-black/30 border border-zinc-800">
+                    <div className="text-sm text-zinc-300">⏱️ You've spent <span className="text-blue-400 font-semibold">{insights.totalHours} hours</span> in focused work sessions</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {view==='heatmap' && (
+              <div className="space-y-3">
+                <div className="text-sm text-zinc-300 font-semibold">90-Day Activity Heatmap</div>
+                <div className="grid grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1">
+                  {streakData.map((d,i)=>{
+                    const color=d.pct===0?"bg-zinc-800":d.pct<30?"bg-red-900/50":d.pct<60?"bg-yellow-900/50":d.pct<80?"bg-emerald-900/50":"bg-emerald-600";
+                    return (
+                      <div key={i} className={`aspect-square rounded ${color}`} title={`${d.date}: ${d.pct}% (${d.done}/${d.total})`}></div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <span>Less</span>
+                  <div className="flex gap-1">
+                    <div className="w-3 h-3 rounded bg-zinc-800"></div>
+                    <div className="w-3 h-3 rounded bg-red-900/50"></div>
+                    <div className="w-3 h-3 rounded bg-yellow-900/50"></div>
+                    <div className="w-3 h-3 rounded bg-emerald-900/50"></div>
+                    <div className="w-3 h-3 rounded bg-emerald-600"></div>
+                  </div>
+                  <span>More</span>
+                </div>
+              </div>
+            )}
+
+            {view==='table' && (
+              <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                <div className="max-h-[520px] overflow-auto">
+                  <table className="ng text-sm">
+                    <thead>
+                      <tr className="text-zinc-400">
+                        <th className="text-left">Date</th>
+                        <th className="text-right">Total</th>
+                        <th className="text-right">Done</th>
+                        <th className="text-right">% Done</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(r=>(
+                        <tr key={r.date}>
+                          <td className="text-zinc-200">{r.date}</td>
+                          <td className="text-right">{r.total}</td>
+                          <td className="text-right">{r.done}</td>
+                          <td className="text-right">
+                            <span className={r.pct>=80?"text-emerald-400":r.pct>=50?"text-yellow-400":"text-zinc-400"}>
+                              {r.pct}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {rows.length===0 && (
+                        <tr><td colSpan="4" className="text-center py-6 text-zinc-500">No data yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       );
     }
+
     function scanDays(hideZero){
       const out=[];
       try{
