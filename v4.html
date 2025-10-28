@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLITCH v4 — Todo + Proactive Chat</title>
+  <title>GLITCH v5 — Focus Timer + Show One + Shortcuts</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -28,6 +28,7 @@
       useEffect(()=>{ try{localStorage.setItem(key,JSON.stringify(state));}catch{} },[key,state]);
       return [state,setState];
     }
+    const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 
     /* ---------- CHALLENGE HELPERS ---------- */
     const CHALLENGE_TOTAL=22;
@@ -189,7 +190,7 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       );
     }
 
-    /* ---------- PROACTIVE AGENT HOOK ---------- */
+    /* ---------- PROACTIVE AGENT (unchanged) ---------- */
     function useProactiveAgent(tasks, enabled){
       useEffect(()=>{
         if(!enabled) return;
@@ -224,35 +225,101 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       }, [JSON.stringify(tasks), enabled]);
     }
 
-    /* ---------- TODO WINDOW ---------- */
+    /* ---------- FOCUS TIMER HOOK ---------- */
+    function useFocusTimer(){
+      const [state,setState]=useState({
+        taskId:null, duration:0, startedAt:0, halfAnnounced:false, running:false, remaining:0
+      });
+      useEffect(()=>{
+        if(!state.running) return;
+        const id=setInterval(()=>{
+          const elapsed = Math.floor((Date.now()-state.startedAt)/1000);
+          const rem = clamp(state.duration - elapsed, 0, state.duration);
+          setState(s=>({...s, remaining: rem }));
+          // halfway ping
+          if(!state.halfAnnounced && elapsed >= Math.floor(state.duration/2)){
+            setState(s=>({...s, halfAnnounced:true}));
+            emitAgent("Halfway. Two breaths. Stay on the same tab. Keep going.");
+          }
+          // finish
+          if(rem<=0){
+            setState(s=>({...s, running:false}));
+            emitAgent("Time. Mark it done or extend 5 minutes?");
+          }
+        },1000);
+        return ()=>clearInterval(id);
+      },[state.running, state.startedAt, state.duration, state.halfAnnounced]);
+
+      function start(taskId, minutes){
+        const dur = minutes*60;
+        setState({taskId, duration:dur, startedAt:Date.now(), halfAnnounced:false, running:true, remaining:dur});
+        emitAgent(`Timer armed: ${minutes} minutes — focus mode.`);
+      }
+      function stop(){ setState(s=>({...s, running:false})); }
+      return { state, start, stop, setState };
+    }
+
+    /* ---------- TODO WINDOW (+ Focus, Show One, Shortcuts) ---------- */
     function TodoWindow({ onClose, onTasksChange }){
       const today=ymd(), yesterday=prevYmd();
       const [tasks,setTasks]=useLocalState(`ng.todo.${today}` ,[]);
       const [newTask,setNewTask]=useState("");
       const [filter,setFilter]=useState("all");
       const [challengeStart,setChallengeStart]=useState(getOrInitChallengeStart());
+      const [showOne,setShowOne]=useLocalState("ng.showOne", false);
 
+      // selection + focus
+      const [selectedId,setSelectedId]=useState(null);
+      const [focusId,setFocusId]=useState(null);
+      const addInputRef=useRef(null);
+
+      const timer = useFocusTimer();
+
+      // upgrade createdAt if missing
       useEffect(()=>{
         if((tasks||[]).some(t=>!t.createdAt)){ setTasks(ts=>ts.map(t=>t.createdAt? t : {...t, createdAt: Date.now()})); }
       },[]);
 
+      // bubble task changes (for proactive agent)
       useEffect(()=>{ onTasksChange?.(tasks); },[tasks]);
 
+      // stats
       const stats=useMemo(()=>{
         const total=tasks.length, done=tasks.filter(t=>t.done).length, open=total-done, pct=total?Math.round(done/total*100):0;
         return {total,done,open,pct};
       },[tasks]);
       const challengeDay=useMemo(()=>computeChallengeDay(challengeStart,today,CHALLENGE_TOTAL),[challengeStart,today]);
 
+      // filtered + display list
+      const filtered=tasks.filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done);
+      const firstOpen = tasks.find(t=>!t.done);
+      const displayTasks = useMemo(()=>{
+        if(timer.state.running && focusId){
+          return filtered.filter(t=>t.id===focusId);
+        }
+        if(showOne){
+          if(focusId) return filtered.filter(t=>t.id===focusId);
+          return firstOpen ? filtered.filter(t=>t.id===firstOpen.id) : [];
+        }
+        return filtered;
+      }, [filtered, showOne, focusId, timer.state.running, firstOpen?.id]);
+
+      // ensure selected exists
+      useEffect(()=>{
+        if(!selectedId && displayTasks.length>0){ setSelectedId(displayTasks[0].id); }
+      },[displayTasks, selectedId]);
+
+      // actions
       function addTask(){
         const t = newTask.trim();
         if(!t) return;
         const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
         setTasks([...tasks,{id,text:t,done:false,createdAt:Date.now()}]);
         setNewTask("");
+        setSelectedId(id);
       }
       function toggleTask(id){ setTasks(toggleById(tasks,id)); }
-      function removeTask(id){ setTasks(tasks.filter(x=>x.id!==id)); }
+      function removeTask(id){ setTasks(tasks.filter(x=>x.id!==id)); if(id===selectedId) setSelectedId(null); if(id===focusId) setFocusId(null); }
       function clearDone(){ setTasks(tasks.filter(x=>!x.done)); }
       function addCornerDefaults(){
         const incoming = CORNER_DEFAULTS
@@ -278,24 +345,63 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       }
       function resetChallenge(){ const fresh=ymd(); setChallengeStart(fresh); try{localStorage.setItem("ng.challenge.start",fresh);}catch{} }
 
-      const filtered=tasks.filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done);
+      // keyboard shortcuts
+      useEffect(()=>{
+        let tArmedAt = 0; // press T then 5/2 within 1200ms
+        const onKey=(e)=>{
+          const tag = (e.target.tagName||'').toLowerCase();
+          const typing = tag==='input' || tag==='textarea' || e.isComposing;
+          // N: focus add box (works anywhere)
+          if(e.key.toLowerCase()==='n'){ e.preventDefault(); addInputRef.current?.focus(); return; }
+          if(typing) return; // don't steal while typing
+          if(e.key==='Enter'){ e.preventDefault(); addTask(); return; }
+          if(e.key.toLowerCase()==='j'){ e.preventDefault(); if(displayTasks.length===0) return;
+            const idx = Math.max(0, displayTasks.findIndex(t=>t.id===selectedId));
+            const next = displayTasks[Math.min(idx+1, displayTasks.length-1)]; setSelectedId(next?.id || selectedId); return;
+          }
+          if(e.key.toLowerCase()==='k'){ e.preventDefault(); if(displayTasks.length===0) return;
+            const idx = Math.max(0, displayTasks.findIndex(t=>t.id===selectedId));
+            const prev = displayTasks[Math.max(idx-1,0)]; setSelectedId(prev?.id || selectedId); return;
+          }
+          if(e.key===' '){ e.preventDefault(); if(selectedId) toggleTask(selectedId); return; }
+          if(e.key.toLowerCase()==='t'){ tArmedAt=Date.now(); return; }
+          if((e.key==='5' || e.key==='2') && selectedId && Date.now()-tArmedAt<1200){
+            e.preventDefault();
+            setFocusId(selectedId);
+            timer.start(selectedId, e.key==='5'?5:25);
+            return;
+          }
+        };
+        window.addEventListener('keydown', onKey);
+        return ()=>window.removeEventListener('keydown', onKey);
+      }, [displayTasks, selectedId, addTask, toggleTask]);
 
+      // helpers
+      const sel = tasks.find(t=>t.id===selectedId) || null;
+      const focusTask = tasks.find(t=>t.id===focusId) || null;
+      const fmt = (s)=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+      const inFocus = !!focusTask;
+
+      // UI
       return (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5 backdrop-blur h-full">
+          {/* Top bar */}
           <div className="flex items-center justify-between gap-2 mb-4">
             <div>
               <div className="text-sm text-zinc-300">/todo — <span className="text-zinc-400">{today}</span></div>
-              <div className="text-[11px] text-zinc-500">Tasks auto-save locally. Tip: add Corner Conditions first.</div>
+              <div className="text-[11px] text-zinc-500">Tasks auto-save locally. Focus wins.</div>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <button onClick={addCornerDefaults} className="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-900">Add Corner Defaults</button>
               <button onClick={carryOverFromYesterday} className="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-900">Carry Over ⟲</button>
               <button onClick={clearDone} className="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-900">Clear Done</button>
+              <button onClick={()=>setShowOne(!showOne)} className={`rounded-md px-2 py-1 border ${showOne?'border-emerald-500/60 bg-emerald-500/10 text-emerald-300':'border-zinc-700 hover:bg-zinc-900 text-zinc-300'}`}>{showOne?'Show All':'Show One'}</button>
               <button onClick={exportMarkdown} className="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-900">Export .md</button>
               <button onClick={onClose} className="rounded-md border border-emerald-700/60 text-emerald-300 px-2 py-1 hover:bg-emerald-950/40">Exit</button>
             </div>
           </div>
 
+          {/* Progress + Day */}
           <div className="mb-4">
             <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
               <span>Progress <span className="text-zinc-400">(Day {challengeDay}/{CHALLENGE_TOTAL})</span></span>
@@ -308,12 +414,47 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
             </div>
           </div>
 
+          {/* Focus Panel */}
+          {inFocus && (
+            <div className="mb-4 rounded-xl border border-emerald-700/50 bg-emerald-900/10 p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-emerald-300 font-semibold">Focus: {focusTask?.text}</div>
+                <div className="text-[11px] text-zinc-400 flex items-center gap-3">
+                  {timer.state.running ? (
+                    <>
+                      <span>Remaining: <span className="text-emerald-300 font-mono">{fmt(timer.state.remaining)}</span></span>
+                      <button onClick={()=>timer.stop()} className="px-2 py-1 rounded-md border border-zinc-700 hover:bg-zinc-900">Pause</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={()=>timer.start(focusId,5)} className="px-2 py-1 rounded-md border border-emerald-600 text-emerald-300 hover:bg-emerald-950/30">Start 5m</button>
+                      <button onClick={()=>timer.start(focusId,25)} className="px-2 py-1 rounded-md border border-emerald-600 text-emerald-300 hover:bg-emerald-950/30">Start 25m</button>
+                    </>
+                  )}
+                  <button onClick={()=>setFocusId(null)} className="px-2 py-1 rounded-md border border-zinc-700 hover:bg-zinc-900">Exit focus</button>
+                </div>
+              </div>
+              <div className="mt-3 w-full h-2 rounded-full bg-emerald-950/50 overflow-hidden">
+                <div className="h-full bg-emerald-500 transition-all" style={{width:`${100*(1-(timer.state.remaining||0)/(timer.state.duration||1))}%`}}/>
+              </div>
+
+              {!timer.state.running && (
+                <div className="mt-3 text-[12px] text-zinc-400 flex gap-2">
+                  <button onClick={()=>{ setTasks(toggleById(tasks, focusId)); setFocusId(null); }} className="px-2 py-1 rounded-md border border-emerald-600 text-emerald-300 hover:bg-emerald-950/30">Mark done</button>
+                  <button onClick={()=>timer.start(focusId,5)} className="px-2 py-1 rounded-md border border-emerald-600 text-emerald-300 hover:bg-emerald-950/30">+5 min</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Add Task */}
           <div className="flex gap-2 mb-3">
-            <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }}
+            <input ref={addInputRef} value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }}
                    placeholder="Add a task…" className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500" />
             <button onClick={addTask} className="rounded-xl px-4 py-2 bg-emerald-500 text-zinc-900 text-sm font-semibold hover:bg-emerald-400 transition">Add</button>
           </div>
 
+          {/* Filters */}
           <div className="flex items-center gap-2 text-xs mb-2">
             {[
               {id:"all",label:"All"},
@@ -324,17 +465,23 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
             ))}
           </div>
 
+          {/* Task list */}
           <div className="space-y-2">
-            {filtered.length===0 && (
-              <div className="text-sm text-zinc-500 border border-dashed border-zinc-700 rounded-xl p-4">No tasks here. Add one above, or <button className="underline ml-1" onClick={addCornerDefaults}>insert Corner Defaults</button>.</div>
+            {displayTasks.length===0 && (
+              <div className="text-sm text-zinc-500 border border-dashed border-zinc-700 rounded-xl p-4">No tasks here. Add one above, or <button className="underline ml-1" onClick={()=>{ setShowOne(false); }}>show all</button>.</div>
             )}
-            {filtered.map(t=>(
-              <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+            {displayTasks.map(t=>(
+              <div key={t.id}
+                   onClick={()=>{ setSelectedId(t.id); setFocusId(t.id); }}
+                   className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 cursor-pointer
+                     ${t.id===selectedId ? 'border-emerald-600 bg-zinc-900/70' : 'border-zinc-800 bg-zinc-900/60'}`}>
                 <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input type="checkbox" className="size-4 accent-emerald-500" checked={!!t.done} onChange={()=>toggleTask(t.id)} />
+                  <input type="checkbox" className="size-4 accent-emerald-500" checked={!!t.done} onChange={(e)=>{ e.stopPropagation(); toggleTask(t.id); }} />
                   <span className={`text-sm ${t.preset?"text-zinc-100":"text-zinc-300"} ${t.done?"line-through text-zinc-500":""}`}>{t.text}</span>
                 </label>
-                {!t.preset && <button onClick={()=>removeTask(t.id)} className="text-[11px] text-zinc-500 hover:text-zinc-300">remove</button>}
+                {!t.preset && (
+                  <button onClick={(e)=>{ e.stopPropagation(); removeTask(t.id); }} className="text-[11px] text-zinc-500 hover:text-zinc-300">remove</button>
+                )}
               </div>
             ))}
           </div>
@@ -342,7 +489,7 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       );
     }
 
-    /* ---------- DIAGNOSTICS ---------- */
+    /* ---------- DIAGNOSTICS (kept) ---------- */
     function Diagnostics(){
       const results=useMemo(()=>{
         const sampleTasks=[{id:"1",text:"Task A",done:false},{id:"2",text:"Task B",done:true}];
@@ -388,14 +535,10 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
 
     /* ---------- MAIN APP ---------- */
     function App(){
-      const [handle,setHandle]=useState(""), [pass,setPass]=useState(""), [token,setToken]=useState("");
-      const [entropy,setEntropy]=useState(0); const [active,setActive]=useState("todo"); // jump in
       const [agentEnabled] = useLocalState("ng.agent.enabled", true);
       const [liveTasks,setLiveTasks] = useState([]);
 
       useProactiveAgent(liveTasks, agentEnabled);
-
-      useEffect(()=>{ const s=Math.min(100,Math.floor(((handle.length*7+pass.length*11+token.length*13)%101))); setEntropy(s); },[handle,pass,token]);
 
       return (
         <div className="relative min-h-screen overflow-hidden">
