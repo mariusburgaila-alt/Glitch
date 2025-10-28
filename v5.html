@@ -138,7 +138,7 @@
 
     /* ---------- CHAT (unchanged logic; compacted for brevity) ---------- */
     const GLITCH_PERSONA = `You are GLITCH — tough-love astronaut coach. Brief, green terminal. Action first.`;
-    function ChatWindow(){
+    function ChatWindow({ onClose }){
       const [input,setInput]=useState("");
       const [model,setModel]=useState("gpt-4o-mini");
       const [enabled,setEnabled]=useLocalState("ng.agent.enabled", true);
@@ -161,9 +161,9 @@
       }
       return (
         <section id="chat" className="rounded-3xl border border-white/10 bg-zinc-950/80 p-5 backdrop-blur flex flex-col h-full">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div className="text-sm text-zinc-300">/chat — <span className="text-zinc-500">AI link</span></div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <label className="text-[11px] text-zinc-500 flex items-center gap-1">
                 <input type="checkbox" className="accent-emerald-500" checked={enabled} onChange={e=>setEnabled(e.target.checked)} /> Proactive
               </label>
@@ -172,6 +172,9 @@
                 <option value="gpt-5">Deep (GPT-5)</option>
               </select>
             </div>
+            {onClose && (
+              <button onClick={onClose} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:border-emerald-600 hover:text-emerald-300 transition">Back to tasks</button>
+            )}
           </div>
           <div ref={logRef} className="flex-1 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 space-y-2">
             {msgs.map((m,i)=>(
@@ -273,12 +276,32 @@
 
       useEffect(()=>{ if(!selectedId && displayTasks.length>0){ setSelectedId(displayTasks[0].id); } },[displayTasks, selectedId]);
 
-      function addTask(){ const t=newTask.trim(); if(!t) return; const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`; setTasks([...tasks,{id,text:t,done:false,createdAt:Date.now()}]); setNewTask(""); setSelectedId(id); }
-      function toggleTask(id){ setTasks(toggleById(tasks,id)); }
-      function removeTask(id){ setTasks(tasks.filter(x=>x.id!==id)); if(id===selectedId) setSelectedId(null); if(id===focusId) setFocusId(null); }
-      function clearDone(){ setTasks(tasks.filter(x=>!x.done)); }
-      function addCornerDefaults(){ const incoming=CORNER_DEFAULTS.filter(d=>!tasks.some(t=>t.id===d.id)).map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()})); setTasks([...tasks,...incoming]); }
-      function carryOverFromYesterday(){ try{ const raw=localStorage.getItem(`ng.todo.${yesterday}`); if(!raw) return; const yTasks=JSON.parse(raw)||[]; setTasks(mergeCarryOver(tasks,yTasks)); }catch{} }
+      function addTask(){
+        const t=newTask.trim();
+        if(!t) return;
+        const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        const createdAt=Date.now();
+        setTasks(prev=>[{id,text:t,done:false,createdAt},...prev]);
+        setNewTask("");
+        setSelectedId(id);
+        setFocusId(null);
+      }
+      function toggleTask(id){ setTasks(prev=>toggleById(prev,id)); }
+      function removeTask(id){
+        setTasks(prev=>prev.filter(x=>x.id!==id));
+        if(id===selectedId) setSelectedId(null);
+        if(id===focusId) setFocusId(null);
+      }
+      function clearDone(){ setTasks(prev=>prev.filter(x=>!x.done)); }
+      function addCornerDefaults(){
+        setTasks(prev=>{
+          const incoming=CORNER_DEFAULTS
+            .filter(d=>!prev.some(t=>t.id===d.id))
+            .map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()}));
+          return [...prev,...incoming];
+        });
+      }
+      function carryOverFromYesterday(){ try{ const raw=localStorage.getItem(`ng.todo.${yesterday}`); if(!raw) return; const yTasks=JSON.parse(raw)||[]; setTasks(prev=>mergeCarryOver(prev,yTasks)); }catch{} }
       async function exportMarkdown(){ const md=generateMarkdown(today,tasks,stats,challengeDay); let copied=false; try{ if(navigator.clipboard?.writeText){ await navigator.clipboard.writeText(md); copied=true; } }catch{} if(!copied){ const blob=new Blob([md],{type:"text/markdown;charset=utf-8"}); const url=URL.createObjectURL(blob), a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.md`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);} alert(copied?"Copied today’s tasks to clipboard as Markdown.":"Downloaded today’s tasks as .md file."); }
       function saveCalendarLink(){ setCalendarUrl((calendarDraft||"").trim()); }
       function clearCalendarLink(){ setCalendarUrl(""); setCalendarDraft(""); }
@@ -579,16 +602,12 @@
     }
 
     /* ---------- TOP NAV (new) ---------- */
-    function TopNav({ onAddTask, nowLabel, stats, prettyToday, challengeDay }){
+    function TopNav({ onAddTask, nowLabel, stats, prettyToday, challengeDay, activeView, activeSection, onNavigate }){
       const items = [
-        { id:'overview', label:'Overview', target:'top' },
-        { id:'tasks', label:'Tasks', target:'todo' },
-        { id:'chat', label:'Chat', target:'chat' },
+        { id:'overview', label:'Overview', view:'dashboard', anchor:'top' },
+        { id:'tasks', label:'Tasks', view:'dashboard', anchor:'todo' },
+        { id:'chat', label:'Chat', view:'chat', anchor:null },
       ];
-      function go(target){
-        if(target==='top'){ window.scrollTo({ top:0, behavior:'smooth' }); return; }
-        const el=document.getElementById(target); if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
-      }
       return (
         <header className="sticky top-0 z-50" id="top">
           <div className="border-b border-white/10 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60">
@@ -603,16 +622,22 @@
                 </div>
               </div>
               <nav className="hidden md:flex items-center gap-2 text-sm">
-                {items.map(it=>(
-                  <button key={it.id}
-                          onClick={()=>go(it.target)}
-                          className="px-3 py-1.5 rounded-lg border border-zinc-800 text-zinc-300 transition hover:border-emerald-600 hover:bg-emerald-500/10">
+                {items.map(it=>{
+                  const isActive = it.view==='chat'
+                    ? activeView==='chat'
+                    : (activeView==='dashboard' && activeSection === (it.anchor==='todo'?'tasks':'overview'));
+                  return (
+                    <button key={it.id}
+                            onClick={()=>onNavigate?.(it.view, it.anchor)}
+                            className={`px-3 py-1.5 rounded-lg border transition ${isActive? 'border-emerald-600 bg-emerald-500/10 text-emerald-300':'border-zinc-800 text-zinc-300 hover:border-emerald-600 hover:bg-emerald-500/10'}`}>
                     {it.label}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
                 <button onClick={onAddTask} className="ml-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-zinc-900 font-medium shadow shadow-emerald-500/30 transition hover:bg-emerald-400">Add task</button>
               </nav>
               <div className="flex items-center gap-3 ml-auto">
+                <button onClick={()=>onNavigate?.('chat', null)} className={`md:hidden rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${activeView==='chat'?'border-emerald-600 text-emerald-300 bg-emerald-500/10':'border-zinc-700 text-zinc-300 hover:border-emerald-600 hover:text-emerald-300'}`}>Chat</button>
                 <button onClick={onAddTask} className="md:hidden rounded-lg border border-emerald-500/60 px-3 py-1.5 text-xs font-semibold text-emerald-300">+ Task</button>
                 <div className="flex flex-col items-end text-right text-[11px] leading-tight text-zinc-500">
                   <span className="text-zinc-300 text-xs font-medium">{nowLabel}</span>
@@ -676,6 +701,8 @@
     function App(){
       const [agentEnabled] = useLocalState("ng.agent.enabled", true);
       const [liveTasks,setLiveTasks] = useState([]);
+      const [activeView,setActiveView] = useState("dashboard");
+      const [activeSection,setActiveSection] = useState('overview');
       const challenge = useChallengeProgress();
       const [now,setNow] = useState(new Date());
       useEffect(()=>{ const id=setInterval(()=>setNow(new Date()),60*1000); return ()=>clearInterval(id); },[]);
@@ -685,59 +712,90 @@
       const stats = useMemo(()=>computeStats(liveTasks),[liveTasks]);
       const nowLabel = useMemo(()=>new Intl.DateTimeFormat(undefined,{ hour:'numeric', minute:'2-digit' }).format(now),[now]);
 
+      function scrollToAnchor(anchor){
+        if(!anchor) return;
+        if(anchor==='top'){ window.scrollTo({ top:0, behavior:'smooth' }); return; }
+        const el=document.getElementById(anchor);
+        if(el){ el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+      }
+
+      function handleNavigate(view, anchor){
+        setActiveView(view);
+        if(view==='dashboard'){
+          setActiveSection(anchor==='todo' ? 'tasks' : 'overview');
+          setTimeout(()=>scrollToAnchor(anchor||'top'), 80);
+        }
+      }
+
+      function handleAddTask(){
+        setActiveView('dashboard');
+        setActiveSection('tasks');
+        setTimeout(()=>{
+          scrollToAnchor('todo');
+          focusAddTask();
+        }, 100);
+      }
+
       return (
         <div className="relative min-h-screen overflow-hidden">
           <Backdrop/>
-          <TopNav onAddTask={focusAddTask} nowLabel={nowLabel} stats={stats} prettyToday={prettyToday} challengeDay={challenge.day}/>
+          <TopNav onAddTask={handleAddTask} nowLabel={nowLabel} stats={stats} prettyToday={prettyToday} challengeDay={challenge.day} activeView={activeView} activeSection={activeSection} onNavigate={handleNavigate}/>
 
           <main className="relative z-10 mx-auto max-w-6xl px-4 pt-6 pb-16 space-y-8">
-            <SummaryStrip prettyToday={prettyToday} today={challenge.today} challengeDay={challenge.day} challengeTotal={CHALLENGE_TOTAL} stats={stats} nowLabel={nowLabel}/>
+            {activeView==='dashboard' ? (
+              <>
+                <SummaryStrip prettyToday={prettyToday} today={challenge.today} challengeDay={challenge.day} challengeTotal={CHALLENGE_TOTAL} stats={stats} nowLabel={nowLabel}/>
 
-            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)]" id="tasks">
-              <TodoWindow onClose={()=>{}} onTasksChange={setLiveTasks} challenge={challenge}/>
-              <div className="space-y-6">
-                <div className="rounded-3xl border border-white/10 bg-zinc-950/80 p-6 backdrop-blur">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-zinc-100">Quick Reference</div>
-                      <div className="text-xs text-zinc-500">Snapshots of the day’s signal.</div>
+                <section className="grid gap-6 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)]" id="tasks">
+                  <TodoWindow onClose={()=>handleNavigate('dashboard','top')} onTasksChange={setLiveTasks} challenge={challenge}/>
+                  <div className="space-y-6">
+                    <div className="rounded-3xl border border-white/10 bg-zinc-950/80 p-6 backdrop-blur">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-zinc-100">Quick Reference</div>
+                          <div className="text-xs text-zinc-500">Snapshots of the day’s signal.</div>
+                        </div>
+                        <span className="text-xs text-zinc-500">Local {nowLabel}</span>
+                      </div>
+                      <ul className="mt-4 space-y-3 text-sm text-zinc-300">
+                        <li className="flex items-center justify-between">
+                          <span className="text-zinc-500">Active missions</span>
+                          <span className="font-medium text-emerald-300">{stats.open}</span>
+                        </li>
+                        <li className="flex items-center justify-between">
+                          <span className="text-zinc-500">Completed today</span>
+                          <span className="font-medium text-emerald-300">{stats.done}</span>
+                        </li>
+                        <li className="flex items-center justify-between">
+                          <span className="text-zinc-500">Focus ratio</span>
+                          <span className="font-medium text-emerald-300">{stats.total?`${stats.done}/${stats.total}`:'0/0'}</span>
+                        </li>
+                        <li className="flex items-center justify-between">
+                          <span className="text-zinc-500">Momentum</span>
+                          <span className="font-medium text-emerald-300">{stats.pct}%</span>
+                        </li>
+                      </ul>
                     </div>
-                    <span className="text-xs text-zinc-500">Local {nowLabel}</span>
+                    <div className="rounded-3xl border border-white/10 bg-zinc-950/80 p-6 backdrop-blur">
+                      <div className="text-sm font-semibold text-zinc-100">Operating Principles</div>
+                      <ul className="mt-3 space-y-2 text-xs text-zinc-400">
+                        <li>01. Protect the highlight — lock the deep block before noon.</li>
+                        <li>02. Finish the service micro-mission every day.</li>
+                        <li>03. Wind down with a 5-minute retrospective log.</li>
+                      </ul>
+                    </div>
                   </div>
-                  <ul className="mt-4 space-y-3 text-sm text-zinc-300">
-                    <li className="flex items-center justify-between">
-                      <span className="text-zinc-500">Active missions</span>
-                      <span className="font-medium text-emerald-300">{stats.open}</span>
-                    </li>
-                    <li className="flex items-center justify-between">
-                      <span className="text-zinc-500">Completed today</span>
-                      <span className="font-medium text-emerald-300">{stats.done}</span>
-                    </li>
-                    <li className="flex items-center justify-between">
-                      <span className="text-zinc-500">Focus ratio</span>
-                      <span className="font-medium text-emerald-300">{stats.total?`${stats.done}/${stats.total}`:'0/0'}</span>
-                    </li>
-                    <li className="flex items-center justify-between">
-                      <span className="text-zinc-500">Momentum</span>
-                      <span className="font-medium text-emerald-300">{stats.pct}%</span>
-                    </li>
-                  </ul>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-zinc-950/80 p-6 backdrop-blur">
-                  <div className="text-sm font-semibold text-zinc-100">Operating Principles</div>
-                  <ul className="mt-3 space-y-2 text-xs text-zinc-400">
-                    <li>01. Protect the highlight — lock the deep block before noon.</li>
-                    <li>02. Finish the service micro-mission every day.</li>
-                    <li>03. Wind down with a 5-minute retrospective log.</li>
-                  </ul>
-                </div>
-              </div>
-            </section>
+                </section>
 
-            <section className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-              <ChatWindow/>
-              <Diagnostics/>
-            </section>
+                <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)]">
+                  <Diagnostics/>
+                </section>
+              </>
+            ) : (
+              <section className="mx-auto flex w-full max-w-4xl" id="chat">
+                <ChatWindow onClose={()=>handleNavigate('dashboard','todo')}/>
+              </section>
+            )}
 
             <footer className="pt-4 text-center text-[11px] text-zinc-500">
               © {new Date().getFullYear()} Nice Glitch — <span className="text-zinc-300">Make the corner. Get the note.</span>
