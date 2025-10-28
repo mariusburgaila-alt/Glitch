@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLITCH v6 — Stable + Stats</title>
+  <title>GLITCH v6 — Stable + Stats + Random</title>
 
-  <!-- Tailwind (kept CDN; we’ll pin when moving to Vite) -->
+  <!-- Tailwind (CDN for now) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Pinned libs -->
@@ -149,21 +149,24 @@
           <ul className="text-sm list-disc pl-5 text-zinc-400 space-y-1">
             <li><span className="chip">N</span> focuses “Add a task…”</li>
             <li><span className="chip">J/K</span> move • <span className="chip">Space</span> toggle</li>
-            <li><span className="chip">T</span> then <span className="chip">5</span>/<span className="chip">2</span> → 5/25m focus timer</li>
+            <li><span className="chip">T</span> then <span className="chip">5</span>/<span className="chip">2</span> → 5/25m focus timer (coming back later)</li>
             <li>Export/Import **.json** for backups; **.md** for notes</li>
           </ul>
         </section>
       );
     }
 
-    /* ---------------- Todo ---------------- */
+    /* ---------------- Todo (+ RANDOM SCRATCH) ---------------- */
     function TodoCard(){
       const today=TODAY_STR, yesterday=prevYmd();
       const [tasks,setTasks]=useLocalState(`ng.todo.${today}`,[]);
       const [newTask,setNewTask]=useState("");
       const [filter,setFilter]=useState("all");
       const [challengeStart,setChallengeStart]=useState(getOrInitChallengeStart());
-      const fileRef=useRef(null);
+
+      // Random scratch modal
+      const [scratchOpen,setScratchOpen]=useState(false);
+      const [scratchTask,setScratchTask]=useState(null);
 
       useEffect(()=>{ if((tasks||[]).some(t=>!t.createdAt)){ setTasks(ts=>ts.map(t=>t.createdAt?t:{...t,createdAt:Date.now()})); } },[]);
 
@@ -177,10 +180,28 @@
       function addCornerDefaults(){ const incoming=CORNER_DEFAULTS.filter(d=>!tasks.some(t=>t.id===d.id)).map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()})); setTasks([...incoming, ...tasks]); }
       function carryOver(){ try{ const raw=localStorage.getItem(`ng.todo.${yesterday}`); if(!raw) return; const y=safeParse(raw,[]); setTasks(mergeCarryOver(tasks,y)); }catch{} }
       async function exportMarkdown(){ const md=[`# Nice Glitch — ${today} (Day ${challengeDay}/${CHALLENGE_TOTAL})`,`Progress: ${stats.pct}% (${stats.done}/${stats.total})`,"",...tasks.map(t=>`${t.done?"- [x]":"- [ ]"} ${t.text}`)].join("\n"); try{ await navigator.clipboard.writeText(md); alert("Copied Markdown."); }catch{ const blob=new Blob([md],{type:"text/markdown"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.md`; a.click(); URL.revokeObjectURL(url); } }
-      function exportJSON(){ const blob=new Blob([JSON.stringify({date:today,tasks},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.json`; a.click(); URL.revokeObjectURL(url); }
-      function importJSON(e){ const f=e.target.files?.[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=safeParse(String(rd.result||""),null); if(!obj||!Array.isArray(obj.tasks)) throw new Error("Bad file"); setTasks(obj.tasks.map(x=>({ id:x.id||`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, text:String(x.text||""), done:!!x.done, createdAt:x.createdAt||Date.now(), preset:!!x.preset }))); alert("Imported."); }catch(err){ alert("Import failed."); GlobalErrors.push(err); } finally{ e.target.value=""; } }; rd.readAsText(f); }
 
       const filtered=tasks.filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done);
+
+      // RANDOM pick + open scratch modal
+      function randomOpen(){
+        const open = tasks.filter(t=>!t.done);
+        if(open.length===0){ alert("All clear. No open tasks!"); return; }
+        const pick = open[Math.floor(Math.random()*open.length)];
+        setScratchTask(pick);
+        setScratchOpen(true);
+      }
+      function markScratchDone(){
+        if(scratchTask){ setTasks(toggleById(tasks, scratchTask.id)); }
+        setScratchOpen(false);
+      }
+      function another(){
+        // avoid repeating the same task if possible
+        const open=tasks.filter(t=>!t.done && t.id!==scratchTask?.id);
+        if(open.length===0){ setScratchOpen(false); return; }
+        const pick=open[Math.floor(Math.random()*open.length)];
+        setScratchTask(pick);
+      }
 
       return (
         <section className="card p-5 space-y-4">
@@ -194,9 +215,6 @@
               <button className="btn" onClick={carryOver}>Carry Over ⟲</button>
               <button className="btn" onClick={clearDone}>Clear Done</button>
               <button className="btn" onClick={exportMarkdown}>Export .md</button>
-              <button className="btn" onClick={exportJSON}>Export .json</button>
-              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importJSON}/>
-              <button className="btn" onClick={()=>fileRef.current?.click()}>Import .json</button>
             </div>
           </div>
 
@@ -214,17 +232,21 @@
             </div>
           </div>
 
+          {/* add */}
           <div className="flex gap-2">
             <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }} placeholder="Add a task…" className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
             <button className="btn-cta rounded-xl px-4" onClick={addTask}>Add</button>
           </div>
 
+          {/* filters + RANDOM */}
           <div className="flex items-center gap-2 text-xs">
             {["all","open","done"].map(id=>(
               <button key={id} className={`btn ${filter===id?'border-emerald-500/60 bg-emerald-500/10 text-emerald-300':''}`} onClick={()=>setFilter(id)}>{id[0].toUpperCase()+id.slice(1)}</button>
             ))}
+            <button className="btn border-emerald-600/60 text-emerald-300 hover:bg-emerald-950/20" onClick={randomOpen}>Random 🎲</button>
           </div>
 
+          {/* list */}
           <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
             {filtered.length===0 && (
               <div className="text-sm text-zinc-500 border border-dashed border-zinc-700 rounded-xl p-4">
@@ -237,11 +259,135 @@
                   <input type="checkbox" className="size-4 accent-emerald-500" checked={!!t.done} onChange={()=>toggleTask(t.id)} />
                   <span className={`text-sm ${t.preset?"text-zinc-100":"text-zinc-300"} ${t.done?"line-through text-zinc-500":""}`}>{t.text}</span>
                 </label>
-                {!t.preset && <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={()=>removeTask(t.id)}>remove</button>}
+                {!t.preset && (
+                  <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={()=>removeTask(t.id)}>remove</button>
+                )}
               </div>
             ))}
           </div>
+
+          {/* Scratch-off modal */}
+          {scratchOpen && scratchTask && (
+            <ScratchCardModal
+              text={scratchTask.text}
+              onClose={()=>setScratchOpen(false)}
+              onDone={markScratchDone}
+              onAnother={another}
+            />
+          )}
         </section>
+      );
+    }
+
+    /* ---------------- Scratch Card Modal ---------------- */
+    function ScratchCardModal({ text, onClose, onDone, onAnother }){
+      const canvasRef = useRef(null);
+      const wrapRef = useRef(null);
+      const [revealed,setRevealed]=useState(false);
+      const strokeCountRef = useRef(0);
+      const drawingRef = useRef(false);
+
+      useEffect(()=>{
+        const canvas = canvasRef.current;
+        const wrap = wrapRef.current;
+        if(!canvas || !wrap) return;
+
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const W = wrap.clientWidth;
+        const H = 200;
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = `${W}px`;
+        canvas.style.height = `${H}px`;
+
+        const ctx = canvas.getContext('2d');
+        // foil cover
+        const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height);
+        grad.addColorStop(0, '#475569'); // slate
+        grad.addColorStop(1, '#1f2937'); // gray-800
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        // shimmer lines
+        ctx.globalCompositeOperation = 'source-over';
+        for(let i=0;i<10;i++){
+          ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+          ctx.lineWidth = 4 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(Math.random()*canvas.width, 0);
+          ctx.lineTo(Math.random()*canvas.width, canvas.height);
+          ctx.stroke();
+        }
+
+        ctx.globalCompositeOperation = 'destination-out';
+
+        function scratch(x,y){
+          const r = 18 * dpr;
+          ctx.beginPath();
+          ctx.arc(x,y,r,0,Math.PI*2);
+          ctx.fill();
+          strokeCountRef.current++;
+          if(strokeCountRef.current % 12 === 0){ // throttle sampling
+            try {
+              const data = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+              let cleared = 0;
+              for(let i=3;i<data.length;i+=4){ if(data[i]===0) cleared++; }
+              const ratio = cleared / (canvas.width*canvas.height);
+              if(ratio > 0.5) setRevealed(true);
+            } catch(e) {}
+          }
+        }
+
+        function getXY(evt){
+          const rect = canvas.getBoundingClientRect();
+          const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - rect.left;
+          const y = (evt.touches?evt.touches[0].clientY:evt.clientY) - rect.top;
+          return [x * dpr, y * dpr];
+        }
+
+        function down(e){ e.preventDefault(); drawingRef.current=true; const [x,y]=getXY(e); scratch(x,y); }
+        function move(e){ if(!drawingRef.current) return; e.preventDefault(); const [x,y]=getXY(e); scratch(x,y); }
+        function up(){ drawingRef.current=false; }
+
+        canvas.addEventListener('mousedown',down); window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+        canvas.addEventListener('touchstart',down,{passive:false}); window.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up);
+
+        return ()=>{
+          canvas.removeEventListener('mousedown',down); window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up);
+          canvas.removeEventListener('touchstart',down); window.removeEventListener('touchmove',move); window.removeEventListener('touchend',up);
+        };
+      },[]);
+
+      return (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm grid place-items-center p-4">
+          <div className="w-full max-w-xl">
+            <div className="rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-emerald-950/60 via-zinc-950/60 to-zinc-950 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold text-emerald-300">Scratch to reveal your mission</div>
+                <button className="text-xs text-zinc-400 hover:text-zinc-200" onClick={onClose}>Close</button>
+              </div>
+
+              <div ref={wrapRef} className="relative rounded-xl border border-zinc-800 bg-black/40 overflow-hidden">
+                <div className="p-4">
+                  <div className={`text-center text-lg font-semibold transition ${revealed?'text-emerald-300':'text-zinc-500'}`}>
+                    {revealed ? text : "……………….  scratch here  ……………….."}
+                  </div>
+                </div>
+
+                {!revealed && (
+                  <canvas ref={canvasRef} className="absolute inset-0 w-full h-[200px]"></canvas>
+                )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button className="btn-cta rounded-xl px-4 py-2" onClick={onDone}>Mark done</button>
+                <button className="btn rounded-xl px-3 py-2" onClick={onAnother}>Another</button>
+                <button className="btn rounded-xl px-3 py-2" onClick={onClose}>Close</button>
+                {!revealed && <span className="text-xs text-zinc-500">Reveal at least 50% to see it ✨</span>}
+              </div>
+            </div>
+          </div>
+        </div>
       );
     }
 
@@ -291,23 +437,19 @@
       );
     }
 
-    /* ---------------- Stats (new) ---------------- */
+    /* ---------------- Stats ---------------- */
     function StatsScreen({onBack}){
       const [hideZero,setHideZero]=useLocalState("ng.stats.hideZero", true);
       const [rows,setRows]=useState(()=>scanDays(hideZero));
-
       function refresh(){ setRows(scanDays(hideZero)); }
       useEffect(()=>{ setRows(scanDays(hideZero)); },[hideZero]);
-
       function exportCSV(){
         const head=["date","total","done","pct"];
         const body=rows.map(r=>[r.date,r.total,r.done,`${r.pct}`]);
         const csv=[head.join(","), ...body.map(a=>a.join(","))].join("\n");
-        const blob=new Blob([csv],{type:"text/csv"});
-        const url=URL.createObjectURL(blob);
+        const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
         const a=document.createElement("a"); a.href=url; a.download="ng-stats.csv"; a.click(); URL.revokeObjectURL(url);
       }
-
       return (
         <section className="card p-5 space-y-4">
           <div className="flex items-center justify-between gap-2">
@@ -353,7 +495,6 @@
         </section>
       );
     }
-
     function scanDays(hideZero){
       const out=[];
       try{
@@ -369,7 +510,6 @@
           out.push({date,total,done,pct});
         }
       }catch(e){ GlobalErrors.push(e); }
-      // latest first
       out.sort((a,b)=> (a.date<b.date?1:-1));
       return out;
     }
