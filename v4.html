@@ -4,12 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GLITCH v4 — Todo + Proactive Chat</title>
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React + ReactDOM (CDN) -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <!-- Babel to run JSX in browser -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-[#0B0B0C] text-zinc-100">
@@ -31,7 +28,6 @@
       useEffect(()=>{ try{localStorage.setItem(key,JSON.stringify(state));}catch{} },[key,state]);
       return [state,setState];
     }
-    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
     /* ---------- CHALLENGE HELPERS ---------- */
     const CHALLENGE_TOTAL=22;
@@ -68,7 +64,7 @@
     }
     function toggleById(list,id){ return list.map(x=>x.id===id?{...x,done:!x.done,completedAt:!x.done?Date.now():undefined}:x); }
 
-    /* ---------- DECOR ---------- */
+    /* ---------- DECOR + UI BITS ---------- */
     function Backdrop(){
       return (<>
         <div className="absolute -top-40 -left-32 w-[44rem] h-[44rem] rounded-full bg-purple-700/25 blur-3xl" />
@@ -89,6 +85,17 @@
           <span className="absolute inset-0 -translate-x-[1px] -translate-y-[1px] text-emerald-400/70 blur-[0.5px] select-none" aria-hidden>{children}</span>
           <span className="absolute inset-0 translate-x-[1px] translate-y-[1px] text-fuchsia-500/70 blur-[0.5px] select-none" aria-hidden>{children}</span>
         </span>
+      );
+    }
+    function Field({ label, hint, children }) {
+      return (
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm text-zinc-300">{label}</label>
+            {hint && <span className="text-[11px] text-zinc-500">{hint}</span>}
+          </div>
+          {children}
+        </div>
       );
     }
 
@@ -115,7 +122,6 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
 
       useEffect(()=>{ if(logRef.current){ logRef.current.scrollTop=logRef.current.scrollHeight; } },[msgs]);
 
-      // Listen for proactive pings
       useEffect(()=>{
         const h = (e)=> setMsgs(m=>[...m,{who:"ai", text:e.detail.text}]);
         window.addEventListener("ng:agent", h);
@@ -177,24 +183,18 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
           </div>
 
           <div className="mt-2 text-[11px] text-zinc-500">
-            Replies in <span className="text-emerald-300">green</span>. Calls use your own <code class="font-mono">/api/chat</code>.
+            Replies in <span className="text-emerald-300">green</span>. Calls use your own <code className="font-mono">/api/chat</code>.
           </div>
         </div>
       );
     }
 
     /* ---------- PROACTIVE AGENT HOOK ---------- */
-    // Watches open tasks; pings via emitAgent(). Respects "Proactive" toggle.
     function useProactiveAgent(tasks, enabled){
       useEffect(()=>{
         if(!enabled) return;
-        // small delay after mount to avoid instant spam on refresh
-        let cancelled=false;
-        const tick = async () => {
-          if(cancelled) return;
+        const tick = () => {
           const now = Date.now();
-
-          // thresholds (minutes)
           const DEFAULT_MIN = 30;
           const RULES = [
             { match:/move|walk|zone\s*2/i, min:10, msg:t=>`Quick win: ${t}. 10-minute Zone-2 — start now; report back ✅` },
@@ -202,37 +202,29 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
             { match:/breath|breathe|mindful|meditat/i, min:10, msg:t=>`Reset nervous system: ${t}. 5 mindful breaths — in 4, hold 4, out 6.` },
             { match:/service|ping|email|reply/i, min:20, msg:t=>`Micro-service: ${t}. Send the helpful ping. One take. Ship.` },
           ];
-
           (tasks||[]).forEach(task=>{
             if(task.done) return;
             const created = task.createdAt || Date.now();
             const ageMin = (now - created)/60000;
-
-            // choose rule threshold
             let min = DEFAULT_MIN, templ = (txt)=>`Still open: ${txt}. Pick a tiny first move; 5 minutes only.`;
             for(const r of RULES){ if(r.match.test(task.text)){ min=r.min; templ=r.msg; break; } }
-
             if(ageMin >= min){
               const lastKey = `ng.agent.last.${task.id}`;
               const last = Number(localStorage.getItem(lastKey) || 0);
-              if(now - last > 15*60*1000){ // avoid spam, 15 min between pings per task
+              if(now - last > 15*60*1000){
                 localStorage.setItem(lastKey, String(now));
                 emitAgent( templ(task.text) );
               }
             }
           });
         };
-
-        // check every minute
         const id = setInterval(tick, 60*1000);
-        // run once after a short pause
         const start = setTimeout(tick, 5000);
-
-        return ()=>{ cancelled=true; clearInterval(id); clearTimeout(start); };
-      }, [JSON.stringify(tasks), enabled]); // stringify so we notice text/done changes
+        return ()=>{ clearInterval(id); clearTimeout(start); };
+      }, [JSON.stringify(tasks), enabled]);
     }
 
-    /* ---------- TODO WINDOW (left) ---------- */
+    /* ---------- TODO WINDOW ---------- */
     function TodoWindow({ onClose, onTasksChange }){
       const today=ymd(), yesterday=prevYmd();
       const [tasks,setTasks]=useLocalState(`ng.todo.${today}` ,[]);
@@ -240,13 +232,10 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       const [filter,setFilter]=useState("all");
       const [challengeStart,setChallengeStart]=useState(getOrInitChallengeStart());
 
-      // one-time upgrade: ensure createdAt on existing tasks
       useEffect(()=>{
-        const needsUpgrade = (tasks||[]).some(t=>!t.createdAt);
-        if(needsUpgrade){ setTasks(ts=>ts.map(t=>t.createdAt? t : {...t, createdAt: Date.now()})); }
-        // eslint-disable-next-line
+        if((tasks||[]).some(t=>!t.createdAt)){ setTasks(ts=>ts.map(t=>t.createdAt? t : {...t, createdAt: Date.now()})); }
       },[]);
-      // bubble up for agent
+
       useEffect(()=>{ onTasksChange?.(tasks); },[tasks]);
 
       const stats=useMemo(()=>{
@@ -353,31 +342,25 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       );
     }
 
-    /* ---------- DIAGNOSTICS (kept) ---------- */
+    /* ---------- DIAGNOSTICS ---------- */
     function Diagnostics(){
       const results=useMemo(()=>{
         const sampleTasks=[{id:"1",text:"Task A",done:false},{id:"2",text:"Task B",done:true}];
         const sampleStats={pct:50,done:1,total:2};
         const md=generateMarkdown("2099-01-01",sampleTasks,sampleStats,5);
         const t1 = md.includes("(Day 5/22)") && md.includes("\n- [ ] Task A\n- [x] Task B") && !md.includes("\r\n");
-
         const yTasks=[{id:"y1",text:"A",done:true},{id:"y2",text:"B",done:false},{id:"y3",text:"C",done:false}];
         const today=[{id:"t1",text:"B",done:false}];
         const merged=mergeCarryOver(today,yTasks);
         const t2 = merged.some(m=>m.text==="B") && merged.some(m=>m.text==="C") && !merged.some(m=>m.text==="A");
-
         const t3 = toggleById([{id:"z",text:"Z",done:false}],"z")[0].done===true;
-
         const start="2025-01-01";
         const d1=computeChallengeDay(start,"2025-01-01"), d2=computeChallengeDay(start,"2025-01-02"),
               d22=computeChallengeDay(start,"2025-01-22"), dCap=computeChallengeDay(start,"2025-02-15");
         const t4 = d1===1 && d2===2 && d22===22 && dCap===22;
-
         const md2=generateMarkdown("2099-12-31",[],{pct:0,done:0,total:0},1);
         const t5 = md2.startsWith("# Nice Glitch — 2099-12-31 (Day 1/22)\nProgress: 0% (0/0)\n\n");
-
         const t6 = daysBetween("2025-01-31","2025-02-02")===2;
-
         return [
           {name:"Markdown includes Day X/22 and uses \\n",pass:t1},
           {name:"Carry-over merges undone, dedupes by text",pass:t2},
@@ -406,15 +389,13 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
     /* ---------- MAIN APP ---------- */
     function App(){
       const [handle,setHandle]=useState(""), [pass,setPass]=useState(""), [token,setToken]=useState("");
-      const [entropy,setEntropy]=useState(0); const [active,setActive]=useState("login");
+      const [entropy,setEntropy]=useState(0); const [active,setActive]=useState("todo"); // jump in
       const [agentEnabled] = useLocalState("ng.agent.enabled", true);
       const [liveTasks,setLiveTasks] = useState([]);
 
-      // run proactive agent
       useProactiveAgent(liveTasks, agentEnabled);
 
       useEffect(()=>{ const s=Math.min(100,Math.floor(((handle.length*7+pass.length*11+token.length*13)%101))); setEntropy(s); },[handle,pass,token]);
-      function submit(e){ e?.preventDefault(); setActive("todo"); } // jump straight in
 
       return (
         <div className="relative min-h-screen overflow-hidden">
@@ -430,31 +411,10 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
               <p className="mt-1 text-zinc-400 text-sm">Exact Corner Event // Fracture Window ▸ Secret Access</p>
             </div>
 
-            {active==="login" && (
-              <form onSubmit={submit} className="mx-auto max-w-md rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 backdrop-blur">
-                <Field label="Handle" hint="your operator name">
-                  <input value={handle} onChange={e=>setHandle(e.target.value)} autoFocus className="w-full rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500" placeholder="stardust"/>
-                </Field>
-                <Field label="Passphrase" hint="not validated yet">
-                  <input value={pass} onChange={e=>setPass(e.target.value)} type="password" className="w-full rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500" placeholder="••••••••"/>
-                </Field>
-                <Field label="Uplink Token" hint="optional">
-                  <input value={token} onChange={e=>setToken(e.target.value)} className="w-full rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500" placeholder="NG-CRC7-XXXX"/>
-                </Field>
-                <div className="mt-4 mb-5">
-                  <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1"><span>Signal Entropy</span><span>{entropy}%</span></div>
-                  <div className="w-full h-2 rounded-full bg-zinc-900 overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{width:`${entropy}%`}}/></div>
-                </div>
-                <button type="submit" className="w-full rounded-xl bg-emerald-400 text-zinc-900 font-semibold py-2.5 hover:bg-emerald-300 transition">Enter Terminal</button>
-              </form>
-            )}
-
-            {active!=="login" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <TodoWindow onClose={()=>setActive("login")} onTasksChange={setLiveTasks}/>
-                <div className="min-h-[28rem]"><ChatWindow/></div>
-              </div>
-            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <TodoWindow onClose={()=>{}} onTasksChange={setLiveTasks}/>
+              <div className="min-h-[28rem]"><ChatWindow/></div>
+            </div>
 
             <Diagnostics/>
             <footer className="mt-8 text-center text-[11px] text-zinc-500">
@@ -465,9 +425,7 @@ offer a single next step, a tiny timer, or a reframing. Prefer bullets. Avoid ra
       );
     }
 
-    // Mount App
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
-
