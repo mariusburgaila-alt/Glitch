@@ -81,6 +81,14 @@
       .btn { padding: 0.4rem 0.6rem; font-size: 0.875rem; }
       body { padding-top: 8px; }
     }
+
+    /* Utility classes */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
   </style>
 </head>
 <body class="min-h-screen">
@@ -320,6 +328,7 @@
 
             <div className="flex items-center gap-2 flex-wrap">
               <button className={`btn ${route==='dashboard'?'bg-zinc-800':''}`} onClick={()=>goto('dashboard')}>Dashboard</button>
+              <button className={`btn ${route==='ideas'?'bg-zinc-800':''}`} onClick={()=>goto('ideas')}>Ideas</button>
               <button className={`btn ${route==='chat'?'bg-zinc-800':''}`} onClick={()=>goto('chat')}>Chat</button>
               <button className={`btn ${route==='stats'?'bg-zinc-800':''}`} onClick={()=>goto('stats')}>Stats</button>
 
@@ -335,6 +344,7 @@
           </div>
 
           {route==='dashboard' && <Dashboard/>}
+          {route==='ideas' && <IdeasBoard onBack={()=>goto('dashboard')}/>}
           {route==='chat' && <ChatScreen proactive={proactive} onBack={()=>goto('dashboard')}/>}
           {route==='stats' && <StatsScreen onBack={()=>goto('dashboard')}/>}
 
@@ -375,6 +385,286 @@
             </div>
           </div>
         </section>
+      );
+    }
+
+    /* ---------------- Ideas Board (Trello-style) ---------------- */
+    function IdeasBoard({onBack}){
+      const DEFAULT_COLUMNS=["Backlog","In Progress","Done","Maybe Later"];
+      const [ideas,setIdeas]=useLocalState("ng.ideas",[]);
+      const [columns,setColumns]=useLocalState("ng.ideas.columns",DEFAULT_COLUMNS);
+      const [draggedIdea,setDraggedIdea]=useState(null);
+      const [editingIdea,setEditingIdea]=useState(null);
+      const [showModal,setShowModal]=useState(false);
+
+      // Check reminders and create todos
+      useEffect(()=>{
+        const checkReminders=()=>{
+          const today=TODAY_STR;
+          const todayDate=new Date(today).setHours(0,0,0,0);
+
+          ideas.forEach(idea=>{
+            if(idea.reminder && !idea.reminderTriggered){
+              const reminderDate=new Date(idea.reminder).setHours(0,0,0,0);
+              if(reminderDate<=todayDate){
+                // Create todo task
+                const todos=safeGet(`ng.todo.${today}`,[]);
+                const taskText=`💡 Work on: ${idea.title}`;
+                const exists=todos.some(t=>t.text===taskText);
+
+                if(!exists){
+                  const newTask={
+                    id:`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+                    text:taskText,
+                    done:false,
+                    createdAt:Date.now(),
+                    priority:"medium",
+                    tags:[...idea.tags,"idea"],
+                    notes:`From Ideas board:\n${idea.description}\n\n${idea.url||''}`,
+                    timeTracked:0
+                  };
+                  safeSet(`ng.todo.${today}`,[newTask,...todos]);
+
+                  // Mark reminder as triggered
+                  setIdeas(ideas.map(i=>i.id===idea.id?{...i,reminderTriggered:true}:i));
+                  window.dispatchEvent(new CustomEvent("ng:taskUpdate"));
+                }
+              }
+            }
+          });
+        };
+
+        checkReminders();
+        const interval=setInterval(checkReminders,60000); // Check every minute
+        return ()=>clearInterval(interval);
+      },[ideas]);
+
+      function openCreateModal(){
+        setEditingIdea({
+          id:`idea-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+          title:"",
+          description:"",
+          url:"",
+          tags:[],
+          column:columns[0],
+          reminder:null,
+          reminderTriggered:false,
+          createdAt:Date.now()
+        });
+        setShowModal(true);
+      }
+
+      function openEditModal(idea){
+        setEditingIdea({...idea});
+        setShowModal(true);
+      }
+
+      function saveIdea(){
+        if(!editingIdea.title.trim()) return;
+
+        const exists=ideas.find(i=>i.id===editingIdea.id);
+        if(exists){
+          setIdeas(ideas.map(i=>i.id===editingIdea.id?editingIdea:i));
+        }else{
+          setIdeas([...ideas,editingIdea]);
+        }
+        setShowModal(false);
+        setEditingIdea(null);
+      }
+
+      function deleteIdea(id){
+        if(confirm("Delete this idea?")){
+          setIdeas(ideas.filter(i=>i.id!==id));
+        }
+      }
+
+      function moveIdea(ideaId,toColumn){
+        setIdeas(ideas.map(i=>i.id===ideaId?{...i,column:toColumn}:i));
+      }
+
+      return (
+        <div className="space-y-4">
+          <section className="card p-5">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <div>
+                <div className="text-sm font-semibold text-zinc-200">💡 Ideas Board</div>
+                <div className="text-[11px] text-zinc-500">Organize your ideas Trello-style. Set reminders to auto-create todos!</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="btn-cta" onClick={openCreateModal}>+ New Idea</button>
+                <button className="btn" onClick={onBack}>Back</button>
+              </div>
+            </div>
+
+            {/* Trello Columns */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {columns.map(column=>(
+                <div
+                  key={column}
+                  className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3 min-h-[400px]"
+                  onDragOver={(e)=>e.preventDefault()}
+                  onDrop={(e)=>{
+                    e.preventDefault();
+                    if(draggedIdea){
+                      moveIdea(draggedIdea,column);
+                      setDraggedIdea(null);
+                    }
+                  }}
+                >
+                  <div className="text-sm font-semibold text-zinc-300 mb-3 flex items-center justify-between">
+                    <span>{column}</span>
+                    <span className="text-xs text-zinc-500">
+                      {ideas.filter(i=>i.column===column).length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {ideas
+                      .filter(i=>i.column===column)
+                      .sort((a,b)=>b.createdAt-a.createdAt)
+                      .map(idea=>(
+                        <div
+                          key={idea.id}
+                          draggable
+                          onDragStart={()=>setDraggedIdea(idea.id)}
+                          onDragEnd={()=>setDraggedIdea(null)}
+                          className={`rounded-lg border border-zinc-700 bg-zinc-800/50 p-3 cursor-move hover:border-zinc-600 transition-all ${draggedIdea===idea.id?'opacity-50':''}`}
+                          onClick={()=>openEditModal(idea)}
+                        >
+                          {idea.url && (
+                            <div className="mb-2 rounded overflow-hidden bg-zinc-900">
+                              <img src={idea.url} alt={idea.title} className="w-full h-24 object-cover" onError={(e)=>e.target.style.display='none'} />
+                            </div>
+                          )}
+                          <div className="text-sm font-medium text-zinc-200 mb-1">{idea.title}</div>
+                          {idea.description && (
+                            <div className="text-xs text-zinc-400 mb-2 line-clamp-2">{idea.description}</div>
+                          )}
+                          {idea.tags.length>0 && (
+                            <div className="flex gap-1 flex-wrap mb-2">
+                              {idea.tags.map(tag=>(
+                                <span key={tag} className="task-tag">{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          {idea.reminder && !idea.reminderTriggered && (
+                            <div className="text-xs text-amber-400 flex items-center gap-1">
+                              ⏰ {idea.reminder}
+                            </div>
+                          )}
+                          {idea.reminderTriggered && (
+                            <div className="text-xs text-emerald-400 flex items-center gap-1">
+                              ✓ Added to todos
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Modal for Create/Edit */}
+          {showModal && editingIdea && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={()=>setShowModal(false)}>
+              <div className="card p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e)=>e.stopPropagation()}>
+                <div className="text-lg font-semibold text-zinc-200 mb-4">
+                  {ideas.find(i=>i.id===editingIdea.id)?"Edit Idea":"New Idea"}
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">Title *</label>
+                    <input
+                      type="text"
+                      value={editingIdea.title}
+                      onChange={e=>setEditingIdea({...editingIdea,title:e.target.value})}
+                      placeholder="Landing page redesign"
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">Description</label>
+                    <textarea
+                      value={editingIdea.description}
+                      onChange={e=>setEditingIdea({...editingIdea,description:e.target.value})}
+                      placeholder="What's this idea about?"
+                      rows="3"
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">Preview URL (image/screenshot)</label>
+                    <input
+                      type="text"
+                      value={editingIdea.url}
+                      onChange={e=>setEditingIdea({...editingIdea,url:e.target.value})}
+                      placeholder="https://example.com/preview.png"
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">Tags (comma separated)</label>
+                    <input
+                      type="text"
+                      value={editingIdea.tags.join(", ")}
+                      onChange={e=>setEditingIdea({...editingIdea,tags:e.target.value.split(",").map(t=>t.trim()).filter(t=>t)})}
+                      placeholder="landing-page, vibe-coded, design"
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">Column</label>
+                    <select
+                      value={editingIdea.column}
+                      onChange={e=>setEditingIdea({...editingIdea,column:e.target.value})}
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    >
+                      {columns.map(col=>(
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-1 block">⏰ Reminder Date (auto-creates todo)</label>
+                    <input
+                      type="date"
+                      value={editingIdea.reminder||""}
+                      onChange={e=>setEditingIdea({...editingIdea,reminder:e.target.value,reminderTriggered:false})}
+                      className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    />
+                    <div className="text-xs text-zinc-500 mt-1">
+                      When this date arrives, a task will automatically appear in your todo list
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 mt-6">
+                  <div>
+                    {ideas.find(i=>i.id===editingIdea.id) && (
+                      <button
+                        className="text-sm text-red-400 hover:text-red-300"
+                        onClick={()=>{ deleteIdea(editingIdea.id); setShowModal(false); }}
+                      >
+                        Delete Idea
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn" onClick={()=>setShowModal(false)}>Cancel</button>
+                    <button className="btn-cta" onClick={saveIdea}>Save Idea</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       );
     }
 
