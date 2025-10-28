@@ -3,26 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GLITCH v6 — Stable</title>
+  <title>GLITCH v6 — Stable + Stats</title>
 
-  <!-- Tailwind CDN (cannot be hard-pinned; safe until we move to Vite) -->
+  <!-- Tailwind (kept CDN; we’ll pin when moving to Vite) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Pinned CDNs -->
+  <!-- Pinned libs -->
   <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
 
   <style>
-    html,body { background: #0B0B0C; color: #E4E4E7; }
-    .ng-green { color: #34D399; }       /* chat replies */
-    .card { border: 1px solid #27272a; background: rgba(9,9,11,.7); border-radius: 1rem; }
-    .btn { border: 1px solid #3f3f46; padding: .5rem .75rem; border-radius: .5rem; }
-    .btn:hover { background: #18181b; }
-    .btn-cta { background: #34D399; color: #0B0B0C; border: none; }
-    .btn-cta:hover { filter: brightness(1.05); }
-    .chip { font-size: .7rem; color:#a1a1aa; border:1px solid #3f3f46; border-radius:.375rem; padding:.15rem .4rem }
-    a { color:#a78bfa; }
+    html,body { background:#0B0B0C; color:#E4E4E7; }
+    .card{ border:1px solid #27272a; background:rgba(9,9,11,.7); border-radius:1rem; }
+    .btn{ border:1px solid #3f3f46; padding:.5rem .75rem; border-radius:.5rem; }
+    .btn:hover{ background:#18181b; }
+    .btn-cta{ background:#34D399; color:#0B0B0C; border:none; }
+    .btn-cta:hover{ filter:brightness(1.05); }
+    .chip{ font-size:.7rem; color:#a1a1aa; border:1px solid #3f3f46; border-radius:.375rem; padding:.15rem .4rem }
+    .ng-green{ color:#34D399; }
+    table.ng { width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums; }
+    table.ng th, table.ng td { border-bottom:1px solid #27272a; padding:.5rem .5rem; }
+    table.ng thead th { position:sticky; top:0; background:#0b0b0cEE; }
   </style>
 </head>
 <body class="min-h-screen">
@@ -31,8 +33,8 @@
   <script type="text/babel">
     const {useEffect,useMemo,useRef,useState} = React;
 
-    /* ----------------------- pinned utils + guards ----------------------- */
-    const TODAY_STR = ymd(); // one source of truth for the day
+    /* ---------------- core utils & storage guards ---------------- */
+    const TODAY_STR = ymd();
 
     function ymd(date=new Date()){
       const y=date.getFullYear(), m=String(date.getMonth()+1).padStart(2,"0"), d=String(date.getDate()).padStart(2,"0");
@@ -42,110 +44,65 @@
     function parseYmd(s){ const [y,m,d]=(s||"").split("-").map(Number); if(!y||!m||!d) return null; return new Date(Date.UTC(y,m-1,d)); }
     function daysBetween(a,b){ const A=parseYmd(a),B=parseYmd(b); if(!A||!B) return 0; return Math.floor((B-A)/(1000*60*60*24)); }
 
-    const CHALLENGE_TOTAL = 22;
+    const CHALLENGE_TOTAL=22;
 
-    function safeParse(json, fallback){
-      try { return JSON.parse(json); } catch { return fallback; }
-    }
-    function safeGet(key, fallback){
-      try { const v = localStorage.getItem(key); return v==null ? fallback : safeParse(v, fallback); }
-      catch { return fallback; }
-    }
-    function safeSet(key, value){
-      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-    }
+    function safeParse(json, fb){ try{ return JSON.parse(json); }catch{ return fb; } }
+    function safeGet(key, fb){ try{ const v=localStorage.getItem(key); return v==null?fb:safeParse(v,fb); }catch{ return fb; } }
+    function safeSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch{} }
     function clearPrefix(prefix){
-      try {
-        const toDel=[];
-        for(let i=0;i<localStorage.length;i++){
-          const k=localStorage.key(i);
-          if(k && k.startsWith(prefix)) toDel.push(k);
-        }
-        toDel.forEach(k=>localStorage.removeItem(k));
-      } catch {}
+      try{
+        const del=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k?.startsWith(prefix)) del.push(k); }
+        del.forEach(k=>localStorage.removeItem(k));
+      }catch{}
     }
-
     function useLocalState(key, initial){
-      const [state,setState] = useState(()=> safeGet(key, initial));
-      useEffect(()=>{ safeSet(key, state); }, [key, state]);
+      const [state,setState]=useState(()=>safeGet(key,initial));
+      useEffect(()=>{ safeSet(key,state); },[key,state]);
       return [state,setState];
     }
-
     function getOrInitChallengeStart(){
-      const k="ng.challenge.start";
-      const v = safeGet(k, null);
-      if (v) return v;
-      safeSet(k, TODAY_STR);
-      return TODAY_STR;
+      const k="ng.challenge.start"; const v=safeGet(k,null);
+      if(v) return v; safeSet(k, TODAY_STR); return TODAY_STR;
     }
     function computeChallengeDay(startStr, todayStr=TODAY_STR, total=CHALLENGE_TOTAL){
-      const d=Math.max(0, daysBetween(startStr, todayStr));
-      return Math.max(1, Math.min(total, d+1));
+      const d=Math.max(0, daysBetween(startStr, todayStr)); return Math.max(1, Math.min(total, d+1));
     }
-
-    const CORNER_DEFAULTS = [
-      { id:"cc-move", text:"Move 10 minutes (walk/Zone 2)", preset:true },
-      { id:"cc-breathe", text:"5 mindful breaths + one word", preset:true },
-      { id:"cc-build", text:"25-min build block (highest leverage)", preset:true },
-      { id:"cc-service", text:"1 micro-service (helpful ping)", preset:true },
+    const CORNER_DEFAULTS=[
+      {id:"cc-move",text:"Move 10 minutes (walk/Zone 2)",preset:true},
+      {id:"cc-breathe",text:"5 mindful breaths + one word",preset:true},
+      {id:"cc-build",text:"25-min build block (highest leverage)",preset:true},
+      {id:"cc-service",text:"1 micro-service (helpful ping)",preset:true},
     ];
-
-    function mergeCarryOver(todayTasks, yTasks){
-      const undone=(yTasks||[]).filter(t=>!t.done);
-      const merged=[...todayTasks];
-      undone.forEach(t=>{
-        if(!merged.some(m=>m.text===t.text)){
-          merged.push({ id:`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, text:t.text, done:false });
-        }
-      });
+    function mergeCarryOver(todayTasks,yTasks){
+      const undone=(yTasks||[]).filter(t=>!t.done); const merged=[...todayTasks];
+      undone.forEach(t=>{ if(!merged.some(m=>m.text===t.text)){ merged.push({id:`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, text:t.text, done:false}); }});
       return merged;
     }
-    function toggleById(list,id){ return list.map(x=>x.id===id ? {...x,done:!x.done} : x); }
+    function toggleById(list,id){ return list.map(x=>x.id===id?{...x,done:!x.done}:x); }
 
-    /* ----------------------------- error bus ----------------------------- */
-    const GlobalErrors = {
-      push(msg){
-        const list = safeGet("ng.errors", []);
-        list.unshift({ ts: Date.now(), msg: String(msg).slice(0,500) });
-        safeSet("ng.errors", list.slice(0,50));
-        window.dispatchEvent(new CustomEvent("ng:errors"));
-      },
-      useErrors(){
-        const [errs,setErrs]=useState(()=>safeGet("ng.errors",[]));
-        useEffect(()=>{
-          const h=()=>setErrs(safeGet("ng.errors",[]));
-          window.addEventListener("ng:errors",h);
-          return ()=>window.removeEventListener("ng:errors",h);
-        },[]);
-        return errs;
-      }
+    /* ---------------- error bus ---------------- */
+    const GlobalErrors={
+      push(msg){ const list=safeGet("ng.errors",[]); list.unshift({ts:Date.now(), msg:String(msg).slice(0,500)}); safeSet("ng.errors", list.slice(0,50)); window.dispatchEvent(new CustomEvent("ng:errors")); },
+      use(){ const [errs,setErrs]=useState(()=>safeGet("ng.errors",[])); useEffect(()=>{ const h=()=>setErrs(safeGet("ng.errors",[])); window.addEventListener("ng:errors",h); return ()=>window.removeEventListener("ng:errors",h); },[]); return errs; }
     };
+    window.onerror=(m,src,ln,col,err)=>GlobalErrors.push(err?.stack||m||"Unknown error");
+    window.onunhandledrejection=(e)=>GlobalErrors.push(e?.reason?.stack||e?.reason||"Unhandled rejection");
 
-    // global catchers
-    window.onerror = (m,src,ln,col,err)=>{ GlobalErrors.push(err?.stack||m||"Unknown error"); };
-    window.onunhandledrejection = (e)=>{ GlobalErrors.push(e?.reason?.stack||e?.reason||"Unhandled rejection"); };
-
-    /* ------------------------------ routing ------------------------------ */
+    /* ---------------- hash routing ---------------- */
     function useHashRoute(){
-      const pick = ()=> location.hash.replace(/^#\/?/,'') || "dashboard";
+      const pick=()=>location.hash.replace(/^#\/?/,'')||"dashboard";
       const [route,setRoute]=useState(pick);
-      useEffect(()=>{
-        const onChange=()=>setRoute(pick());
-        window.addEventListener("hashchange", onChange);
-        if(!location.hash) location.hash="#/dashboard";
-        return ()=>window.removeEventListener("hashchange", onChange);
-      },[]);
-      return [route, (r)=>{ location.hash = `#/${r}`; }];
+      useEffect(()=>{ const on=()=>setRoute(pick()); window.addEventListener("hashchange",on); if(!location.hash) location.hash="#/dashboard"; return ()=>window.removeEventListener("hashchange",on); },[]);
+      return [route,(r)=>{ location.hash=`#/${r}`; }];
     }
 
-    /* ----------------------------- components ---------------------------- */
+    /* ---------------- app ---------------- */
     function App(){
-      const [route, goto] = useHashRoute();
-      const [proactive,setProactive] = useLocalState("ng.proactive", false);
+      const [route,goto]=useHashRoute();
+      const [proactive,setProactive]=useLocalState("ng.proactive", false);
 
       return (
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-          {/* top bar */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="size-9 rounded-xl bg-gradient-to-br from-purple-600 via-fuchsia-500 to-emerald-400 grid place-items-center text-[11px] font-black">NG</div>
@@ -156,22 +113,20 @@
             <div className="flex items-center gap-2">
               <button className={`btn ${route==='dashboard'?'bg-zinc-800':''}`} onClick={()=>goto('dashboard')}>Dashboard</button>
               <button className={`btn ${route==='chat'?'bg-zinc-800':''}`} onClick={()=>goto('chat')}>Chat</button>
+              <button className={`btn ${route==='stats'?'bg-zinc-800':''}`} onClick={()=>goto('stats')}>Stats</button>
 
               <label className="inline-flex items-center gap-2 ml-2 text-sm text-zinc-400">
                 <input type="checkbox" className="accent-emerald-500" checked={!!proactive} onChange={e=>setProactive(e.target.checked)} />
                 Proactive
               </label>
 
-              <button className="btn" title="Clear only ng.* keys" onClick={()=>{
-                if(confirm("Hard Reset (clears local NG data only)?")){
-                  clearPrefix("ng.");
-                  location.reload();
-                }
-              }}>Hard Reset</button>
+              <button className="btn" title="Clear only ng.* keys" onClick={()=>{ if(confirm("Hard Reset (clears local NG data only)?")){ clearPrefix("ng."); location.reload(); }}}>Hard Reset</button>
             </div>
           </div>
 
-          {route==='dashboard' ? <Dashboard proactive={proactive}/> : <ChatScreen proactive={proactive} onBack={()=>goto('dashboard')}/>}
+          {route==='dashboard' && <Dashboard/>}
+          {route==='chat' && <ChatScreen proactive={proactive} onBack={()=>goto('dashboard')}/>}
+          {route==='stats' && <StatsScreen onBack={()=>goto('dashboard')}/>}
 
           <Diagnostics/>
         </div>
@@ -192,96 +147,40 @@
         <section className="card p-4 space-y-3">
           <div className="text-sm text-zinc-300 font-semibold">Shortcuts & Tips</div>
           <ul className="text-sm list-disc pl-5 text-zinc-400 space-y-1">
-            <li><span className="chip">N</span> focuses the “Add a task…” input</li>
-            <li><span className="chip">J/K</span> move selection • <span className="chip">Space</span> toggles done</li>
-            <li><span className="chip">T</span> then <span className="chip">5</span> or <span className="chip">2</span> starts a 5/25m timer on the selected task</li>
-            <li>“Export .md / .json” for backups • “Import .json” to restore</li>
+            <li><span className="chip">N</span> focuses “Add a task…”</li>
+            <li><span className="chip">J/K</span> move • <span className="chip">Space</span> toggle</li>
+            <li><span className="chip">T</span> then <span className="chip">5</span>/<span className="chip">2</span> → 5/25m focus timer</li>
+            <li>Export/Import **.json** for backups; **.md** for notes</li>
           </ul>
         </section>
       );
     }
 
+    /* ---------------- Todo ---------------- */
     function TodoCard(){
-      const today = TODAY_STR;
-      const yesterday = prevYmd();
-      const [tasks,setTasks] = useLocalState(`ng.todo.${today}`, []);
-      const [newTask,setNewTask] = useState("");
-      const [filter,setFilter] = useState("all");
-      const [challengeStart,setChallengeStart] = useState(getOrInitChallengeStart());
-      const fileRef = useRef(null);
+      const today=TODAY_STR, yesterday=prevYmd();
+      const [tasks,setTasks]=useLocalState(`ng.todo.${today}`,[]);
+      const [newTask,setNewTask]=useState("");
+      const [filter,setFilter]=useState("all");
+      const [challengeStart,setChallengeStart]=useState(getOrInitChallengeStart());
+      const fileRef=useRef(null);
 
-      // carry-over fixer for old stored items w/o createdAt
-      useEffect(()=>{
-        if((tasks||[]).some(t=>!t.createdAt)){
-          setTasks(ts=>ts.map(t=>t.createdAt ? t : {...t, createdAt: Date.now()}));
-        }
-      },[]);
+      useEffect(()=>{ if((tasks||[]).some(t=>!t.createdAt)){ setTasks(ts=>ts.map(t=>t.createdAt?t:{...t,createdAt:Date.now()})); } },[]);
 
-      const stats = useMemo(()=>{
-        const total=tasks.length, done=tasks.filter(t=>t.done).length, open=total-done;
-        return { total, done, open, pct: total?Math.round(done/total*100):0 };
-      },[tasks]);
-      const challengeDay = useMemo(()=>computeChallengeDay(challengeStart, today),[challengeStart]);
+      const stats=useMemo(()=>{ const total=tasks.length, done=tasks.filter(t=>t.done).length, open=total-done; return {total,done,open,pct:total?Math.round(done/total*100):0}; },[tasks]);
+      const challengeDay=useMemo(()=>computeChallengeDay(challengeStart, today),[challengeStart]);
 
-      function addTask(){
-        const t = newTask.trim();
-        if(!t) return;
-        const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-        setTasks([{id,text:t,done:false,createdAt:Date.now()}, ...tasks]);
-        setNewTask("");
-      }
+      function addTask(){ const t=newTask.trim(); if(!t) return; const id=`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`; setTasks([{id,text:t,done:false,createdAt:Date.now()}, ...tasks]); setNewTask(""); }
       function toggleTask(id){ setTasks(toggleById(tasks,id)); }
       function removeTask(id){ setTasks(tasks.filter(x=>x.id!==id)); }
       function clearDone(){ setTasks(tasks.filter(x=>!x.done)); }
-      function addCornerDefaults(){
-        const incoming = CORNER_DEFAULTS
-          .filter(d=>!tasks.some(t=>t.id===d.id))
-          .map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()}));
-        setTasks([...incoming, ...tasks]);
-      }
-      function carryOver(){
-        try {
-          const raw = localStorage.getItem(`ng.todo.${yesterday}`);
-          if(!raw) return;
-          const y = safeParse(raw, []);
-          setTasks(mergeCarryOver(tasks, y));
-        } catch {}
-      }
-      async function exportMarkdown(){
-        const md = [
-          `# Nice Glitch — ${today} (Day ${challengeDay}/${CHALLENGE_TOTAL})`,
-          `Progress: ${stats.pct}% (${stats.done}/${stats.total})`,
-          "",
-          ...tasks.map(t => `${t.done?"- [x]":"- [ ]"} ${t.text}`)
-        ].join("\n");
-        try { await navigator.clipboard.writeText(md); alert("Copied Markdown to clipboard."); }
-        catch {
-          const blob = new Blob([md], {type:"text/markdown"});
-          const url = URL.createObjectURL(blob);
-          const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.md`; a.click(); URL.revokeObjectURL(url);
-        }
-      }
-      function exportJSON(){
-        const blob = new Blob([JSON.stringify({date: today, tasks}, null, 2)], {type:"application/json"});
-        const url = URL.createObjectURL(blob);
-        const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.json`; a.click(); URL.revokeObjectURL(url);
-      }
-      function importJSON(e){
-        const f=e.target.files?.[0]; if(!f) return;
-        const rd = new FileReader();
-        rd.onload = () => {
-          try {
-            const obj = safeParse(String(rd.result||""), null);
-            if(!obj || !Array.isArray(obj.tasks)) throw new Error("Bad file");
-            setTasks(obj.tasks.map(x=>({ id:x.id||`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, text:String(x.text||""), done:!!x.done, createdAt:x.createdAt||Date.now(), preset:!!x.preset })));
-            alert("Imported tasks.");
-          } catch(err){ alert("Import failed."); GlobalErrors.push(err); }
-          finally { e.target.value=""; }
-        };
-        rd.readAsText(f);
-      }
+      function addCornerDefaults(){ const incoming=CORNER_DEFAULTS.filter(d=>!tasks.some(t=>t.id===d.id)).map(d=>({id:d.id,text:d.text,done:false,preset:true,createdAt:Date.now()})); setTasks([...incoming, ...tasks]); }
+      function carryOver(){ try{ const raw=localStorage.getItem(`ng.todo.${yesterday}`); if(!raw) return; const y=safeParse(raw,[]); setTasks(mergeCarryOver(tasks,y)); }catch{} }
+      async function exportMarkdown(){ const md=[`# Nice Glitch — ${today} (Day ${challengeDay}/${CHALLENGE_TOTAL})`,`Progress: ${stats.pct}% (${stats.done}/${stats.total})`,"",...tasks.map(t=>`${t.done?"- [x]":"- [ ]"} ${t.text}`)].join("\n"); try{ await navigator.clipboard.writeText(md); alert("Copied Markdown."); }catch{ const blob=new Blob([md],{type:"text/markdown"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.md`; a.click(); URL.revokeObjectURL(url); } }
+      function exportJSON(){ const blob=new Blob([JSON.stringify({date:today,tasks},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`nice-glitch-${today}.json`; a.click(); URL.revokeObjectURL(url); }
+      function importJSON(e){ const f=e.target.files?.[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const obj=safeParse(String(rd.result||""),null); if(!obj||!Array.isArray(obj.tasks)) throw new Error("Bad file"); setTasks(obj.tasks.map(x=>({ id:x.id||`t-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, text:String(x.text||""), done:!!x.done, createdAt:x.createdAt||Date.now(), preset:!!x.preset }))); alert("Imported."); }catch(err){ alert("Import failed."); GlobalErrors.push(err); } finally{ e.target.value=""; } }; rd.readAsText(f); }
 
-      const filtered = tasks.filter(t=> filter==="all" ? true : filter==="done" ? t.done : !t.done );
+      const filtered=tasks.filter(t=>filter==="all"?true:filter==="done"?t.done:!t.done);
 
       return (
         <section className="card p-5 space-y-4">
@@ -296,50 +195,36 @@
               <button className="btn" onClick={clearDone}>Clear Done</button>
               <button className="btn" onClick={exportMarkdown}>Export .md</button>
               <button className="btn" onClick={exportJSON}>Export .json</button>
-              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importJSON} />
+              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importJSON}/>
               <button className="btn" onClick={()=>fileRef.current?.click()}>Import .json</button>
             </div>
           </div>
 
-          {/* progress */}
           <div>
             <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
               <span>Progress <span className="text-zinc-400">(Day {challengeDay}/{CHALLENGE_TOTAL})</span></span>
               <span>{stats.pct}% ({stats.done}/{stats.total})</span>
             </div>
             <div className="w-full h-2 rounded-full bg-zinc-900 overflow-hidden">
-              <div className="h-full bg-emerald-500 transition-all" style={{ width: `${stats.pct}%` }}></div>
+              <div className="h-full bg-emerald-500 transition-all" style={{width:`${stats.pct}%`}}></div>
             </div>
             <div className="mt-1 text-[11px] text-zinc-500 flex items-center justify-between">
-              <span>Challenge start: <span className="text-zinc-400">{challengeStart}</span></span>
-              <button className="underline hover:text-zinc-300" onClick={()=>{
-                const fresh = TODAY_STR; setChallengeStart(fresh); safeSet("ng.challenge.start", fresh);
-              }}>reset day 1</button>
+              <span>Challenge start: <span className="text-zinc-400">{getOrInitChallengeStart()}</span></span>
+              <button className="underline hover:text-zinc-300" onClick={()=>{ const fresh=TODAY_STR; safeSet("ng.challenge.start",fresh); location.reload(); }}>reset day 1</button>
             </div>
           </div>
 
-          {/* add */}
           <div className="flex gap-2">
-            <input
-              value={newTask}
-              onChange={e=>setNewTask(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter") addTask(); }}
-              placeholder="Add a task…"
-              className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            />
+            <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") addTask(); }} placeholder="Add a task…" className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
             <button className="btn-cta rounded-xl px-4" onClick={addTask}>Add</button>
           </div>
 
-          {/* filters */}
           <div className="flex items-center gap-2 text-xs">
             {["all","open","done"].map(id=>(
-              <button key={id} className={`btn ${filter===id?'border-emerald-500/60 bg-emerald-500/10 text-emerald-300':''}`} onClick={()=>setFilter(id)}>
-                {id[0].toUpperCase()+id.slice(1)}
-              </button>
+              <button key={id} className={`btn ${filter===id?'border-emerald-500/60 bg-emerald-500/10 text-emerald-300':''}`} onClick={()=>setFilter(id)}>{id[0].toUpperCase()+id.slice(1)}</button>
             ))}
           </div>
 
-          {/* list */}
           <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
             {filtered.length===0 && (
               <div className="text-sm text-zinc-500 border border-dashed border-zinc-700 rounded-xl p-4">
@@ -352,9 +237,7 @@
                   <input type="checkbox" className="size-4 accent-emerald-500" checked={!!t.done} onChange={()=>toggleTask(t.id)} />
                   <span className={`text-sm ${t.preset?"text-zinc-100":"text-zinc-300"} ${t.done?"line-through text-zinc-500":""}`}>{t.text}</span>
                 </label>
-                {!t.preset && (
-                  <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={()=>removeTask(t.id)}>remove</button>
-                )}
+                {!t.preset && <button className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={()=>removeTask(t.id)}>remove</button>}
               </div>
             ))}
           </div>
@@ -362,47 +245,36 @@
       );
     }
 
-    function ChatScreen({ proactive, onBack }){
+    /* ---------------- Chat ---------------- */
+    function ChatScreen({proactive,onBack}){
       const [model,setModel]=useLocalState("ng.chat.model","gpt-4o-mini");
       const [msgs,setMsgs]=useLocalState("ng.chat.msgs",[]);
       const [input,setInput]=useState("");
-
       async function send(){
         const text=input.trim(); if(!text) return;
-        const mine={role:"user", text, ts:Date.now()};
-        setMsgs([...msgs, mine]); setInput("");
-
-        try {
-          const r = await fetch("/api/chat", {
-            method:"POST",
-            headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({ model, input:text })
-          });
+        const mine={role:"user",text,ts:Date.now()}; setMsgs([...msgs,mine]); setInput("");
+        try{
+          const r=await fetch("/api/chat",{ method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({model,input:text}) });
           if(!r.ok) throw new Error(`HTTP ${r.status}`);
-          const j = await r.json();
-          const ai = { role:"assistant", text: String(j.output_text || j.text || "(no content)"), ts: Date.now() };
-          setMsgs(m=>[...m, ai]);
-        } catch(err){
+          const j=await r.json();
+          const ai={role:"assistant",text:String(j.output_text||j.text||"(no content)"),ts:Date.now()};
+          setMsgs(m=>[...m,ai]);
+        }catch(err){
           GlobalErrors.push(err);
-          const ai = { role:"assistant", text:"(API error; check /api/chat + key)", ts: Date.now() };
-          setMsgs(m=>[...m, ai]);
+          setMsgs(m=>[...m,{role:"assistant",text:"(API error; check /api/chat + key)",ts:Date.now()}]);
         }
       }
-
       return (
         <section className="card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-zinc-200">/chat — AI link</div>
             <div className="flex items-center gap-2">
               <select className="bg-black/40 border border-zinc-700 rounded-md px-2 py-1 text-sm" value={model} onChange={e=>setModel(e.target.value)}>
-                <option>gpt-4o-mini</option>
-                <option>gpt-4.1-mini</option>
-                <option>gpt-5-nano</option>
+                <option>gpt-4o-mini</option><option>gpt-4.1-mini</option><option>gpt-5-nano</option>
               </select>
               <button className="btn" onClick={onBack}>Back to dashboard</button>
             </div>
           </div>
-
           <div className="space-y-3 max-h-[470px] overflow-y-auto pr-1">
             {msgs.map((m,i)=>(
               <div key={i} className={`rounded-xl px-3 py-2 ${m.role==='assistant'?'bg-black/30':'bg-zinc-900/60'}`}>
@@ -410,46 +282,118 @@
               </div>
             ))}
           </div>
-
           <div className="flex gap-2">
-            <input
-              value={input}
-              onChange={e=>setInput(e.target.value)}
-              onKeyDown={e=>{ if(e.key==='Enter') send(); }}
-              placeholder="Type a message…"
-              className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            />
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') send(); }} placeholder="Type a message…" className="flex-1 rounded-xl bg-black/40 border border-zinc-800 px-3 py-2 text-sm outline-none focus:border-zinc-500"/>
             <button className="btn-cta rounded-xl px-4" onClick={send}>Send</button>
           </div>
-
           <div className="text-[11px] text-zinc-500">Replies in <span className="ng-green">green</span>. Calls use your own <code>/api/chat</code>.</div>
         </section>
       );
     }
 
+    /* ---------------- Stats (new) ---------------- */
+    function StatsScreen({onBack}){
+      const [hideZero,setHideZero]=useLocalState("ng.stats.hideZero", true);
+      const [rows,setRows]=useState(()=>scanDays(hideZero));
+
+      function refresh(){ setRows(scanDays(hideZero)); }
+      useEffect(()=>{ setRows(scanDays(hideZero)); },[hideZero]);
+
+      function exportCSV(){
+        const head=["date","total","done","pct"];
+        const body=rows.map(r=>[r.date,r.total,r.done,`${r.pct}`]);
+        const csv=[head.join(","), ...body.map(a=>a.join(","))].join("\n");
+        const blob=new Blob([csv],{type:"text/csv"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a"); a.href=url; a.download="ng-stats.csv"; a.click(); URL.revokeObjectURL(url);
+      }
+
+      return (
+        <section className="card p-5 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-zinc-200">/stats — Daily completion</div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-zinc-400 inline-flex items-center gap-2">
+                <input type="checkbox" className="accent-emerald-500" checked={!!hideZero} onChange={e=>setHideZero(e.target.checked)} />
+                Hide zero-task days
+              </label>
+              <button className="btn" onClick={refresh}>Refresh</button>
+              <button className="btn" onClick={exportCSV}>Export CSV</button>
+              <button className="btn" onClick={onBack}>Back</button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 overflow-hidden">
+            <div className="max-h-[520px] overflow-auto">
+              <table className="ng text-sm">
+                <thead>
+                  <tr className="text-zinc-400">
+                    <th className="text-left">Date</th>
+                    <th className="text-right">Total</th>
+                    <th className="text-right">Done</th>
+                    <th className="text-right">% Done</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r=>(
+                    <tr key={r.date}>
+                      <td className="text-zinc-200">{r.date}</td>
+                      <td className="text-right">{r.total}</td>
+                      <td className="text-right">{r.done}</td>
+                      <td className="text-right">{r.pct}%</td>
+                    </tr>
+                  ))}
+                  {rows.length===0 && (
+                    <tr><td colSpan="4" className="text-center py-6 text-zinc-500">No data yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    function scanDays(hideZero){
+      const out=[];
+      try{
+        for(let i=0;i<localStorage.length;i++){
+          const k=localStorage.key(i);
+          if(!k?.startsWith("ng.todo.")) continue;
+          const date=k.slice("ng.todo.".length);
+          const tasks=safeGet(k,[]);
+          const total=Array.isArray(tasks)?tasks.length:0;
+          const done=Array.isArray(tasks)?tasks.filter(t=>t?.done).length:0;
+          const pct = total?Math.round((done/total)*100):0;
+          if(hideZero && total===0) continue;
+          out.push({date,total,done,pct});
+        }
+      }catch(e){ GlobalErrors.push(e); }
+      // latest first
+      out.sort((a,b)=> (a.date<b.date?1:-1));
+      return out;
+    }
+
+    /* ---------------- Diagnostics ---------------- */
     function Diagnostics(){
-      // Unit-ish checks + runtime errors
-      const results = useMemo(()=>{
-        const sampleTasks=[{id:"1",text:"Task A",done:false},{id:"2",text:"Task B",done:true}];
-        const sampleStats={pct:50,done:1,total:2};
+      const results=useMemo(()=>{
         const md=`# Nice Glitch — 2099-01-01 (Day 5/22)\nProgress: 50% (1/2)\n\n- [ ] Task A\n- [x] Task B`;
-        const t1 = md.includes("(Day 5/22)") && md.includes("\n- [ ] Task A\n- [x] Task B");
-        const merged = mergeCarryOver([{id:"t1",text:"B",done:false}],[{text:"A",done:true},{text:"B",done:false},{text:"C",done:false}]);
-        const t2 = merged.some(m=>m.text==="B") && merged.some(m=>m.text==="C") && !merged.some(m=>m.text==="A");
-        const t3 = toggleById([{id:"z", text:"Z", done:false}],"z")[0].done===true;
-        const t4 = computeChallengeDay("2025-01-01","2025-01-22")===22 && computeChallengeDay("2025-01-01","2025-02-20")===22;
-        const t5 = daysBetween("2025-01-31","2025-02-02")===2;
+        const t1=md.includes("(Day 5/22)")&&md.includes("\n- [ ] Task A\n- [x] Task B");
+        const merged=mergeCarryOver([{id:"t1",text:"B",done:false}],[{text:"A",done:true},{text:"B",done:false},{text:"C",done:false}]);
+        const t2=merged.some(m=>m.text==="B")&&merged.some(m=>m.text==="C")&&!merged.some(m=>m.text==="A");
+        const t3=toggleById([{id:"z",text:"Z",done:false}],"z")[0].done===true;
+        const t4=computeChallengeDay("2025-01-01","2025-01-22")===22 && computeChallengeDay("2025-01-01","2025-02-20")===22;
+        const t5=daysBetween("2025-01-31","2025-02-02")===2;
         return [
-          { name: "Markdown join + Day X/22", pass: t1 },
-          { name: "Carry-over merges undone", pass: t2 },
-          { name: "toggleById flips", pass: t3 },
-          { name: "Challenge capped at 22", pass: t4 },
-          { name: "daysBetween month change", pass: t5 },
+          {name:"Markdown join + Day X/22",pass:t1},
+          {name:"Carry-over merges undone",pass:t2},
+          {name:"toggleById flips",pass:t3},
+          {name:"Challenge capped at 22",pass:t4},
+          {name:"daysBetween month change",pass:t5},
         ];
       },[]);
-      const errs = GlobalErrors.useErrors();
-      const allPass = results.every(r=>r.pass);
-
+      const errs=GlobalErrors.use();
+      const allPass=results.every(r=>r.pass);
       return (
         <section className="card p-4 mt-2">
           <div className="flex items-center justify-between mb-2">
@@ -457,9 +401,7 @@
             <div className={`text-xs ${allPass?'text-emerald-400':'text-amber-400'}`}>{allPass?"All tests passed":"Some tests failed"}</div>
           </div>
           <ul className="text-[12px] space-y-1 mb-3">
-            {results.map((r,i)=>(
-              <li key={i} className={r.pass?"text-emerald-300":"text-amber-300"}>{r.pass?"✓":"•"} {r.name}</li>
-            ))}
+            {results.map((r,i)=>(<li key={i} className={r.pass?"text-emerald-300":"text-amber-300"}>{r.pass?"✓":"•"} {r.name}</li>))}
           </ul>
           <div className="text-xs text-zinc-400 mb-1">Runtime errors (latest first)</div>
           <div className="rounded-lg bg-black/30 border border-zinc-800 p-2 max-h-40 overflow-y-auto text-[11px] text-zinc-400">
