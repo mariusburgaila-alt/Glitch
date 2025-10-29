@@ -302,7 +302,6 @@
     /* ---------------- app ---------------- */
     function App(){
       const [route,goto]=useHashRoute();
-      const [proactive,setProactive]=useLocalState("ng.proactive", false);
       const hasUndo=UndoStack.use();
       ProgressBus.use(); // in case you want to read it later
 
@@ -329,15 +328,9 @@
             <div className="flex items-center gap-2 flex-wrap">
               <button className={`btn ${route==='dashboard'?'bg-zinc-800':''}`} onClick={()=>goto('dashboard')}>Dashboard</button>
               <button className={`btn ${route==='ideas'?'bg-zinc-800':''}`} onClick={()=>goto('ideas')}>Ideas</button>
-              <button className={`btn ${route==='chat'?'bg-zinc-800':''}`} onClick={()=>goto('chat')}>Chat</button>
               <button className={`btn ${route==='stats'?'bg-zinc-800':''}`} onClick={()=>goto('stats')}>Stats</button>
 
               {hasUndo && <button className="btn bg-purple-900/30 border-purple-700/50" onClick={handleUndo} title="Undo last action">↶ Undo</button>}
-
-              <label className="inline-flex items-center gap-2 ml-2 text-sm text-zinc-400">
-                <input type="checkbox" className="accent-emerald-500" checked={!!proactive} onChange={e=>setProactive(e.target.checked)} />
-                Proactive
-              </label>
 
               <button className="btn" title="Clear only ng.* keys" onClick={()=>{ if(confirm("Hard Reset (clears local NG data only)?")){ clearPrefix("ng."); location.reload(); }}}>Hard Reset</button>
             </div>
@@ -345,7 +338,6 @@
 
           {route==='dashboard' && <Dashboard/>}
           {route==='ideas' && <IdeasBoard onBack={()=>goto('dashboard')}/>}
-          {route==='chat' && <ChatScreen proactive={proactive} onBack={()=>goto('dashboard')}/>}
           {route==='stats' && <StatsScreen onBack={()=>goto('dashboard')}/>}
 
           <Diagnostics/>
