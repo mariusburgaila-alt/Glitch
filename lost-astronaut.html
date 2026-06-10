@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🧑‍🚀 Lost Astronaut — Repeatable Content Formats</title>
+<style>
+  :root{
+    --bg:#07070b;
+    --bg-soft:#11111a;
+    --card:#15151f;
+    --card-hover:#1c1c2b;
+    --line:#272735;
+    --text:#ECECF1;
+    --muted:#9494a8;
+    --dim:#6b6b80;
+    --pink:#ff5fa2;
+    --purple:#a78bfa;
+    --green:#34d399;
+    --yellow:#fbbf24;
+    --blue:#60a5fa;
+    --orange:#fb923c;
+    --red:#f87171;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:
+      radial-gradient(1300px 650px at 12% -10%, rgba(167,139,250,.20), transparent 60%),
+      radial-gradient(1100px 520px at 92% -5%, rgba(255,95,162,.14), transparent 55%),
+      radial-gradient(900px 600px at 50% 120%, rgba(96,165,250,.10), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:6rem;
+  }
+  .wrap{ max-width:960px; margin:0 auto; padding:0 1.25rem; }
+  a{ color:var(--purple); }
+
+  /* ---------- HERO ---------- */
+  header.hero{ text-align:center; padding:5rem 1.25rem 2.5rem; }
+  .badge{
+    display:inline-block; font-size:.78rem; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--purple); border:1px solid var(--line); background:rgba(167,139,250,.08);
+    border-radius:999px; padding:.4rem .9rem; margin-bottom:1.5rem;
+  }
+  .hero h1{ font-size:clamp(2.3rem,6vw,4rem); line-height:1.04; font-weight:800; letter-spacing:-.02em; margin-bottom:1rem; }
+  .hero h1 .grad{
+    background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero p{ font-size:clamp(1.02rem,2.4vw,1.25rem); color:var(--muted); max-width:660px; margin:0 auto 1.5rem; }
+  .hero .sub{ font-size:.92rem; color:var(--dim); max-width:620px; margin:0 auto; }
+
+  /* ---------- NAV ---------- */
+  nav.toc{
+    position:sticky; top:0; z-index:30; background:rgba(7,7,11,.85); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line); padding:.75rem 0; margin-bottom:3rem;
+  }
+  nav.toc .wrap{ display:flex; flex-wrap:wrap; gap:.4rem; justify-content:center; }
+  nav.toc a{
+    font-size:.82rem; color:var(--muted); text-decoration:none; border:1px solid var(--line);
+    background:var(--bg-soft); border-radius:999px; padding:.4rem .8rem; transition:all .15s ease; white-space:nowrap;
+  }
+  nav.toc a:hover{ color:var(--text); border-color:var(--purple); }
+
+  section{ margin-bottom:4rem; scroll-margin-top:4.5rem; }
+  h2.section{ font-size:clamp(1.5rem,3.5vw,2rem); font-weight:800; letter-spacing:-.01em; margin-bottom:.4rem; display:flex; gap:.6rem; align-items:center; }
+  .section-lead{ color:var(--muted); margin-bottom:1.5rem; max-width:720px; }
+
+  /* ---------- CRITERIA ---------- */
+  .crit-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.9rem; }
+  .crit{
+    background:var(--card); border:1px solid var(--line); border-radius:.9rem; padding:1.1rem 1.2rem;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .crit:hover{ border-color:var(--purple); transform:translateY(-2px); }
+  .crit .n{ font-size:.72rem; color:var(--dim); letter-spacing:.1em; }
+  .crit h3{ font-size:1.02rem; font-weight:700; margin:.15rem 0 .35rem; }
+  .crit p{ font-size:.88rem; color:var(--muted); }
+
+  /* ---------- PROCESS / NOTES ---------- */
+  .note{
+    background:linear-gradient(135deg, rgba(167,139,250,.07), rgba(255,95,162,.05));
+    border:1px solid var(--line); border-left:3px solid var(--purple);
+    border-radius:.9rem; padding:1.2rem 1.4rem; color:var(--muted);
+  }
+  .note b, .note strong{ color:var(--text); }
+  .funnel{ display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin:1.2rem 0; font-weight:700; }
+  .funnel .step{ background:var(--bg-soft); border:1px solid var(--line); border-radius:.6rem; padding:.5rem .9rem; font-size:.9rem; }
+  .funnel .arrow{ color:var(--dim); }
+  .funnel .kill{ color:var(--red); }
+  .funnel .win{ color:var(--green); }
+
+  /* ---------- BRACKET ---------- */
+  .match{ display:grid; grid-template-columns:1fr auto 1fr; gap:.75rem; align-items:center; margin-bottom:.7rem; }
+  .match .a, .match .b{ background:var(--bg-soft); border:1px solid var(--line); border-radius:.6rem; padding:.55rem .8rem; font-size:.9rem; }
+  .match .winner{ border-color:var(--green); color:var(--text); box-shadow:0 0 0 1px rgba(52,211,153,.25) inset; }
+  .match .loser{ color:var(--dim); }
+  .match .vs{ color:var(--dim); font-size:.78rem; font-weight:700; }
+  .match-why{ font-size:.85rem; color:var(--muted); margin:-.2rem 0 1rem; padding-left:.2rem; }
+  .match-why::before{ content:"⚔️ "; }
+  .final-four{ display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+  .ff{ background:linear-gradient(135deg,rgba(52,211,153,.12),rgba(96,165,250,.08)); border:1px solid var(--green); border-radius:.7rem; padding:.6rem 1rem; font-weight:700; font-size:.92rem; }
+  .champ{ margin-top:1rem; font-size:1.05rem; }
+  .champ b{ color:var(--yellow); }
+
+  /* ---------- RANKED CONCEPTS ---------- */
+  .ideas{ display:grid; gap:.9rem; }
+  .idea{
+    background:var(--card); border:1px solid var(--line); border-radius:1rem; overflow:hidden;
+    transition:border-color .15s ease;
+  }
+  .idea.top5{ border-color:rgba(251,191,36,.4); }
+  .idea-head{
+    display:flex; gap:.9rem; align-items:flex-start; padding:1.1rem 1.3rem; cursor:pointer;
+    transition:background .15s ease;
+  }
+  .idea-head:hover{ background:var(--card-hover); }
+  .rank{
+    flex:none; width:2.4rem; height:2.4rem; border-radius:.6rem; display:grid; place-items:center;
+    font-weight:800; font-size:1.05rem; background:var(--bg-soft); border:1px solid var(--line); color:var(--muted);
+  }
+  .idea.top5 .rank{ background:linear-gradient(135deg,var(--yellow),var(--orange)); color:#1a1a1a; border:none; }
+  .idea-head .main{ flex:1; min-width:0; }
+  .idea-head .title{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .idea-head .emoji{ font-size:1.3rem; }
+  .idea-head h3{ font-size:1.12rem; font-weight:700; }
+  .idea-head .star{ font-size:.8rem; color:var(--yellow); }
+  .idea-head .one{ color:var(--muted); font-size:.92rem; margin-top:.2rem; }
+  .scores{ display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.55rem; }
+  .score{ font-size:.7rem; border-radius:.4rem; padding:.18rem .5rem; border:1px solid var(--line); color:var(--muted); }
+  .score b{ color:var(--text); }
+  .score.ease{ border-color:rgba(96,165,250,.4); }
+  .score.repeat{ border-color:rgba(52,211,153,.4); }
+  .score.talent{ border-color:rgba(255,95,162,.4); }
+  .chev{ flex:none; color:var(--dim); transition:transform .2s ease; font-size:.9rem; margin-top:.4rem; }
+  .idea.open .chev{ transform:rotate(180deg); }
+
+  .idea-body{ display:none; padding:0 1.3rem 1.3rem; border-top:1px solid var(--line); }
+  .idea.open .idea-body{ display:block; }
+  .field{ margin-top:.9rem; }
+  .field .k{ font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin-bottom:.15rem; }
+  .field .v{ font-size:.92rem; color:var(--text); }
+  .field .v.muted{ color:var(--muted); }
+  .field.viral .k{ color:var(--pink); } .field.fit .k{ color:var(--purple); }
+  .field.three .k{ color:var(--blue); } .field.risk .k{ color:var(--red); }
+  .field.simpler .k{ color:var(--green); }
+  .hookline{ background:var(--bg-soft); border-left:3px solid var(--yellow); border-radius:.5rem; padding:.6rem .9rem; font-style:italic; font-size:1rem; color:var(--text); }
+  .pills{ display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.3rem; }
+  .pill{ font-size:.78rem; color:var(--muted); background:var(--bg-soft); border:1px solid var(--line); border-radius:.4rem; padding:.2rem .55rem; }
+  .deep{
+    margin-top:1rem; background:linear-gradient(135deg,rgba(251,191,36,.07),rgba(167,139,250,.05));
+    border:1px solid rgba(251,191,36,.3); border-radius:.7rem; padding:1rem 1.1rem;
+  }
+  .deep .k{ font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--yellow); margin-bottom:.4rem; }
+  .deep .v{ font-size:.92rem; color:var(--text); }
+
+  /* ---------- RECOMMENDATION ---------- */
+  .rec{
+    background:linear-gradient(135deg,rgba(52,211,153,.12),rgba(167,139,250,.08));
+    border:1px solid var(--green); border-radius:1rem; padding:1.6rem 1.7rem;
+  }
+  .rec h3{ font-size:1.4rem; font-weight:800; margin-bottom:.6rem; }
+  .rec h3 .pick{ color:var(--green); }
+  .rec p{ color:var(--text); margin-bottom:.8rem; }
+  .rec .flag{ color:var(--muted); font-size:.9rem; border-top:1px solid var(--line); padding-top:.8rem; margin-top:.4rem; }
+
+  /* ---------- 7 DAY PLAN ---------- */
+  .days{ display:grid; gap:.8rem; }
+  .day{ display:grid; grid-template-columns:auto 1fr; gap:1rem; align-items:start; background:var(--card); border:1px solid var(--line); border-radius:.9rem; padding:1rem 1.2rem; }
+  .day .d{ flex:none; font-weight:800; font-size:.85rem; color:var(--bg); background:linear-gradient(135deg,var(--purple),var(--pink)); border-radius:.5rem; padding:.4rem .6rem; white-space:nowrap; text-align:center; }
+  .day h4{ font-size:1rem; font-weight:700; margin-bottom:.2rem; }
+  .day p{ font-size:.9rem; color:var(--muted); }
+
+  footer{ text-align:center; color:var(--dim); font-size:.85rem; margin-top:5rem; padding-top:2rem; border-top:1px solid var(--line); }
+  footer a{ color:var(--purple); text-decoration:none; }
+</style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="badge">🪐 Lost Astronaut · Content Format Lab</div>
+    <h1>20 Repeatable <span class="grad">Organic Formats</span></h1>
+    <p>Not 20 video ideas. 20 <b>formats</b> — recurring, ownable shows that can run weekly with two people and a phone, and become unmistakably <i>Lost Astronaut</i>.</p>
+    <p class="sub">Built like a TV format developer + organic strategist + founder-brand builder would: criteria first, 60 raw concepts, brutal cull, championship bracket, then the final ranked 20. Tap any concept to open the full breakdown.</p>
+  </header>
+
+  <nav class="toc">
+    <div class="wrap">
+      <a href="#criteria">① Criteria</a>
+      <a href="#process">② Filtering</a>
+      <a href="#bracket">③ Bracket</a>
+      <a href="#top20">④ Top 20</a>
+      <a href="#top5">⑤ Deep Top 5</a>
+      <a href="#rec">⑥ Test First</a>
+      <a href="#plan">⑦ 7-Day Plan</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+
+    <!-- 1. CRITERIA -->
+    <section id="criteria">
+      <h2 class="section">🎯 The Evaluation Criteria</h2>
+      <p class="section-lead">Every concept was scored against these ten. A format only survives if it's <b>scroll-stopping, repeatable, cheap, and impossible to separate from Lost Astronaut.</b> Anything that only scored well on "virality" got cut — virality without defensibility just builds someone else's brand.</p>
+      <div class="crit-grid" id="critGrid"></div>
+    </section>
+
+    <!-- 2. PROCESS -->
+    <section id="process">
+      <h2 class="section">🔪 The Filtering Process</h2>
+      <p class="section-lead">No mercy. Here's how 60+ became 20.</p>
+      <div class="funnel">
+        <span class="step">60+ raw concepts</span>
+        <span class="arrow">→</span>
+        <span class="step kill">✂️ killed generic / cringe / expensive / un-repeatable</span>
+        <span class="arrow">→</span>
+        <span class="step">best 30</span>
+        <span class="arrow">→</span>
+        <span class="step">🏆 championship bracket</span>
+        <span class="arrow">→</span>
+        <span class="step win">final 20, ranked</span>
+      </div>
+      <div class="note">
+        <p style="margin-bottom:.7rem"><b>What got executed in the cull (and why):</b></p>
+        <p style="margin-bottom:.5rem">💀 <b>"Ask founders 5 questions"</b> — every startup page already does it. Zero defensibility.</p>
+        <p style="margin-bottom:.5rem">💀 <b>Overproduced sci-fi sets / CGI control rooms</b> — impossible to film weekly, and audiences smell budget-cosplay. The brand has to live in <i>props and rules</i>, not VFX.</p>
+        <p style="margin-bottom:.5rem">💀 <b>Motivational "chase your dreams" montages</b> — cringe, un-ownable, attracts followers not builders.</p>
+        <p style="margin-bottom:.5rem">💀 <b>Plain "man on the street"</b> — kept only the versions with a hard twist (a real offer, a real verdict, a real prop).</p>
+        <p>💀 <b>One-off stunts</b> — anything that couldn't credibly hit 50 episodes died on the spot.</p>
+      </div>
+    </section>
+
+    <!-- 3. BRACKET -->
+    <section id="bracket">
+      <h2 class="section">🏆 Championship Bracket</h2>
+      <p class="section-lead">The 30 survivors fought head-to-head. Representative matchups below — the rule was simple: <b>which one would a stranger send to a friend, and which one could a competitor never truly steal?</b></p>
+      <div id="bracket"></div>
+      <div class="note" style="margin-top:1.5rem">
+        <p style="margin-bottom:.6rem"><b>🥇 Final Four:</b></p>
+        <div class="final-four">
+          <span class="ff">🧑‍🚀 The Helmet</span>
+          <span class="ff">📡 Signal Found</span>
+          <span class="ff">⬛ The Black Box</span>
+          <span class="ff">🎙️ Ground Control</span>
+        </div>
+        <p class="champ">🏆 <b>Bracket champion: The Helmet</b> — the single most ownable visual asset in the set (it's the brand's "Hot Ones wings"). But read the recommendation: the champion isn't necessarily what you film <i>first</i>.</p>
+      </div>
+    </section>
+
+    <!-- 4. TOP 20 -->
+    <section id="top20">
+      <h2 class="section">📋 The Final 20 — Ranked</h2>
+      <p class="section-lead">Strongest → weakest. ⭐ = deep-dive Top 5. Scores: 🎥 ease to film · 🔁 repeatability · 🧲 talent pull (all /10). Tap to expand.</p>
+      <div class="ideas" id="ideas"></div>
+    </section>
+
+    <!-- 5. DEEP TOP 5 -->
+    <section id="top5">
+      <h2 class="section">🔬 Deep Breakdown — Top 5</h2>
+      <p class="section-lead">The five flagship formats, with exactly how each one runs. (These are also expanded inside their cards above under <b>"How it actually works"</b>.)</p>
+      <div class="note">
+        <p>👆 Each Top-5 card above (ranks 1–5) contains its full operating manual: the mechanic, the set, the host's job, the edit, and the cadence. Open <b>The Helmet</b>, <b>Signal Found</b>, <b>The Black Box</b>, <b>Ground Control</b>, and <b>Launch or Scrub</b> and look for the gold <b>"How it actually works"</b> block.</p>
+      </div>
+    </section>
+
+    <!-- 6. RECOMMENDATION -->
+    <section id="rec">
+      <h2 class="section">🫵 The One to Test First</h2>
+      <div class="rec">
+        <h3>Start with <span class="pick">📡 Signal Found</span> — not the bracket champion.</h3>
+        <p>Here's the brutal-but-correct call. <b>The Helmet</b> wins the bracket because it's the most <i>ownable</i> format — but it's a destination, not a starting line. It needs a charismatic host with real authority, a helmet that doesn't look like a costume, and a roster of builders worth putting on trial. You don't have that roster yet.</p>
+        <p><b>Signal Found is the engine that builds everything else.</b> It's the cheapest to produce, it's the literal mission ("find exceptional people before the world notices"), and every episode is you <i>doing relationship-building on camera</i>. The people you feature become the guest pipeline for The Helmet, Black Box, Ground Control, and Launch or Scrub. Test the engine first; the flagship comes online once you have fuel.</p>
+        <p>It's also the lowest-risk virality bet: "discovered before they blew up" is the single most re-shared format on the internet, and viewers screenshot it to plant a flag — <i>"I saw them first."</i> That's free distribution built into the format.</p>
+        <p class="flag">⚠️ <b>Honest contingency:</b> if within a week you land a magnetic host + a real helmet + two builders willing to be put on trial, run a <b>Helmet</b> pilot in parallel. It's the format you'll be remembered for — but Signal Found is the one that earns you the right to make it.</p>
+      </div>
+    </section>
+
+    <!-- 7. PLAN -->
+    <section id="plan">
+      <h2 class="section">🗓️ 7-Day Execution Plan</h2>
+      <p class="section-lead">Goal: ship the first batch — <b>3 Signal Found episodes + 1 Helmet pilot</b> — by day 7. Two people, one camera, no studio.</p>
+      <div class="days" id="days"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    Format lab for Lost Astronaut 🧑‍🚀 · all content lives in editable JS arrays in this file · <a href="viral-ideas.html">← Viral Idea Vault</a> · <a href="index.html">Glitch</a>
+  </footer>
+
+<script>
+/* ───────────────── DATA ───────────────── */
+const CRITERIA = [
+  ["🧲","Virality Potential","Would a stranger stop scrolling and forward it within 5 seconds?"],
+  ["🔁","Repeatability","Can we run it weekly/daily without reinventing the wheel each time?"],
+  ["🎥","Ease of Filming","Can two people shoot it in a single day with a phone?"],
+  ["🪐","Brand Fit","Does it feel unmistakably Lost Astronaut — space, mission, founders, the unknown?"],
+  ["🧠","A+ Talent Magnet","Do the right people want to be in it — or get found by it?"],
+  ["👁️","Visual Distinctiveness","Recognizable in half a second with the sound off?"],
+  ["❤️‍🔥","Tension / Curiosity","Is there a stake, a clock, a question, or a verdict?"],
+  ["💸","Cost Efficiency","Near-zero marginal cost per episode?"],
+  ["🏴","Defensibility","If a competitor copied it, would it still feel stolen from us?"],
+  ["⛏️","Depth","50+ episodes before it gets boring?"]
+];
+
+const BRACKET = [
+  ["The Helmet","Two Founders, One Helmet","a","One stake beats a split stake — the rival format dilutes the prop and the tension into a debate. Keep the helmet, kill the gimmick variant."],
+  ["Signal Found","Star Map","a","Same DNA (discover a person), but Star Map is motion-graphics-heavy and slow to ship. Signal Found is faster, more shareable, and infinitely numerable."],
+  ["The Black Box","Mayday","a","Both mine failure, but Black Box has the stronger ownable prop and a forensic tone. Mayday folds into it as an episode type, not its own show."],
+  ["Ground Control","The Drop","a","Both give something real, but The Drop costs real money every episode and can't scale. Ground Control is repeatable and the question itself is the asset."],
+  ["Launch or Scrub","The Airlock","a","The binary verdict is more clippable and argued-about than getting cut off mid-sentence. Airlock survives as a Launch-or-Scrub variant, not a separate format."],
+  ["The Anomaly","Survival Kit","a","Anomaly has real depth and talent-pull; Survival Kit is snackable but thin on its own. Survival Kit lives on as a light, high-volume B-format."],
+  ["Zero-G Take","Countdown","a","Both are Q&A spines, but the signature mic + 'most dangerous take' is more defensible than a numbered question set. Countdown survives lower in the ranking."],
+  ["Oxygen","Re-entry","tie","Different phases of the same survival arc — both strong enough to keep. Oxygen = present danger, Re-entry = the comeback. Both advance."]
+];
+
+/* scores: ease, repeat, talent (/10) */
+const IDEAS = [
+  {
+    rank:1, top5:true, emoji:"🧑‍🚀", name:"The Helmet",
+    one:"A builder wears our astronaut helmet and can't take it off until they've convinced us their idea deserves backing.",
+    ease:6, repeat:9, talent:9,
+    viral:"The helmet is an instant visual meme, and the 'can't take it off' rule is a literal pressure-clock with a satisfying payoff — the moment it comes off = approval.",
+    fit:"The helmet IS Lost Astronaut. Every frame is branded whether or not a logo shows. 'Backing people before the world notices' becomes the literal mechanic.",
+    firstEp:"A 22-year-old AI builder pitches an agent that books real-world appointments; you grill them until they earn the unclip.",
+    recurring:["The dropout who won't go back","The marketer who lies for a living","The AI kid nobody takes seriously","The founder rejected 40 times"],
+    three:"Extreme close-up of the visor snapping shut over a nervous founder's face — the host reflected in the glass.",
+    hook:"You don't take the helmet off until I believe you.",
+    visual:"One real astronaut helmet. Two chairs. Dark room, single key light, host's reflection in the visor.",
+    different:"It's not an interview — it's a trial with a physical stake. The prop does all the branding for free.",
+    risk:"Dies if the host is soft or the rule feels fake. Helmet must look real, not party-store. Needs genuine authority on camera.",
+    simpler:"Drop the set — film against a black wall. One helmet, one phone on a tripod.",
+    deep:"THE MECHANIC: a single builder sits across from the host wearing the helmet. The rule, stated up front: the helmet stays on until they've genuinely convinced the host their idea/talent deserves backing. The host probes — not softball questions, real pressure: 'why you', 'why now', 'what happens when this gets copied'. When (if) they break through, the host reaches over and lifts the visor — the unclip is the climax and the thumbnail. THE SET: dark room, one hard key light, helmet, two chairs — that's it. THE HOST'S JOB: be the gatekeeper, not the cheerleader. Warmth underneath, but the bar is real; sometimes the helmet stays on and they walk out. THE EDIT: cold-open on the visor closing + the hook line, then jump to the most-tested moment, then the unclip (or the walk-out). 45–75s vertical. CADENCE: one guest per shoot, batch 4–5 in a day. The helmet is the franchise asset — protect it, never let it look cheap."
+  },
+  {
+    rank:2, top5:true, emoji:"📡", name:"Signal Found",
+    one:"Short profiles of dangerously talented people the world hasn't noticed yet — framed as a 'signal' we just picked up.",
+    ease:7, repeat:10, talent:10,
+    viral:"'Discovered before they blew up' is the most re-shared format online; viewers screenshot it to say 'I saw them first.'",
+    fit:"Literally the mission — find exceptional people before the world does. The 'signal' framing makes the discovery feel like a transmission only you intercepted.",
+    firstEp:"A 19-year-old building a fusion side-project in a garage; 90 seconds on who they are and why they're a signal.",
+    recurring:["Signal #001: the teenager rebuilding the power grid","Signal #014: the designer who quit Apple to draw maps","Signal #027: the operator running 3 companies from a van"],
+    three:"A static/noise screen resolves into a face, with 'INCOMING SIGNAL — LOCATION UNKNOWN' and a soft beep.",
+    hook:"We picked up a signal. You should know this person before everyone else does.",
+    visual:"Static intro, blip sound, 'SIGNAL #___' coordinate lower-third, subject in their real environment.",
+    different:"Celebrates the unknown, not the famous. Anti-cliché. Every episode is a numbered collectible — built-in series gravity.",
+    risk:"Becomes a generic talking-head if the 'signal' framing is thin, or if you just feature your friends. Curation is everything.",
+    simpler:"Subject sends a self-shot voice note + photos; you add the signal overlay in edit. No crew.",
+    deep:"THE MECHANIC: you 'intercept' a signal — a genuinely under-the-radar builder — and broadcast a 60–90s dossier: who they are, the one weird/impressive thing, why they're dangerous. Numbered forever (Signal #001, #002…). THE SOURCING (the real work): DMs, niche Discords/communities, referrals from past signals, and a public 'send us a signal' inbox. The talent pipeline this creates feeds every other format. THE SET: there isn't one — you shoot them in their actual world (garage, bedroom, lab, van), or they self-shoot and you add the overlay pack. THE OVERLAY PACK (do this once): static-to-face resolve, beep SFX, 'SIGNAL #___ / COORDINATES UNKNOWN' lower-third, sign-off stamp. THE EDIT: cold-open on static + the hook, fast establish of the person, the 'why this is a signal' punch, end on the number. CADENCE: trivially weekly or daily; this is the volume engine."
+  },
+  {
+    rank:3, top5:true, emoji:"⬛", name:"The Black Box",
+    one:"Founders replay the exact moment everything went wrong — recovered like a flight recorder.",
+    ease:7, repeat:9, talent:8,
+    viral:"Failure is more watchable and shareable than success; the 'black box' framing turns a confession into forensic evidence.",
+    fit:"Failure and survival are core to the space world. Backing real builders means honoring the crashes, not airbrushing them.",
+    firstEp:"A founder narrates the 24 hours their startup ran out of money and they had to fire their best friend.",
+    recurring:["Black Box: the launch that killed the company","Black Box: the co-founder divorce","Black Box: the demo that crashed on stage"],
+    three:"An orange flight-recorder box on a black table, a red 'RECOVERED' stamp, audio crackle of the founder's first line.",
+    hook:"Every crash leaves a recording. Here's what we recovered.",
+    visual:"Orange box prop/motif, timestamp overlays, single subject in low light, transcript-style captions.",
+    different:"Not a humble-brag failure story — it's framed as evidence, cold and forensic, not motivational uplift.",
+    risk:"Can slip into trauma-dumping or fake vulnerability. Needs a real turning point and tight editing, not a pity party.",
+    simpler:"Audio-only 'recovered recording' over the box visual + captions. Zero set.",
+    deep:"THE MECHANIC: treat a founder's worst moment like an aviation crash investigation. The 'black box' (an orange flight-recorder prop) is 'recovered' and we hear the recording — the founder narrating the precise hours it went wrong, in present tense. No redemption bow required; the value is the honesty and the specific decisions. THE SET: black table, low light, the orange box, the founder. Or audio-only over the box for a chillingly simple version. THE TONE: forensic, not therapeutic. Timestamps on screen ('T-minus 6 hours: the wire didn't clear'). Transcript captions reinforce the 'recording' frame. THE HOST: mostly invisible — this is the founder's recording. The host's only job is choosing the right crash and pulling the specific detail. THE EDIT: box + 'RECOVERED' stamp + crackle, drop straight into the worst line, ride the tension, end on the one thing they'd tell the next crew. CADENCE: weekly; an endless supply — every builder has a crash."
+  },
+  {
+    rank:4, top5:true, emoji:"🎙️", name:"Ground Control",
+    one:"We approach a stranger and ask what they'd build if money were no object — and sometimes fund it on the spot.",
+    ease:6, repeat:9, talent:8,
+    viral:"Real reactions + real stakes (actual help/money) is the most stitch-and-screenshot format going. Generosity travels further than advice.",
+    fit:"Backing people before the world notices — done live, in the wild. 'Ground control' keeps the proven street format on-brand.",
+    firstEp:"Host stops a barista sketching app ideas on receipts; asks the dream; covers a domain + the first $500 of ads.",
+    recurring:["Ground Control: the security guard with 200 inventions","Ground Control: the student who codes between shifts","Ground Control: the immigrant with a billion-dollar idea"],
+    three:"Handheld push-in on a stranger mid-sentence, 'GROUND CONTROL — DAY 12' lower-third, street ambience.",
+    hook:"If money wasn't the problem — what would you build?",
+    visual:"Run-and-gun handheld, single mic with a Lost Astronaut flag/sticker, real locations, a real help reveal.",
+    different:"Most street interviews take a clip and leave. This one gives something real — and follows up later.",
+    risk:"Reads exploitative or staged if mishandled; legally messy if you over-promise. Needs a host with genuine warmth.",
+    simpler:"Drop the funding — just ask the question and gift a symbolic 'mission kit' (a patch + a real call).",
+    deep:"THE MECHANIC: host approaches a stranger who's visibly building/creating/grinding, asks the one question — 'if money wasn't the problem, what would you build?' — and listens. When someone's answer is real, the host gives something tangible on the spot: a domain, ad budget, an intro, a mentor call, a 'mission kit'. The give is the payoff. THE TWIST vs Squibb/street-interviews: you follow up. A recurring 'where are they now' loop turns one-off generosity into a serialized arc and proves it's not theater. THE KIT: one mic with a Lost Astronaut flag, a gimbal/phone, and a small real budget per outing. THE HOST: warmth + speed; can spot the genuine builder among the bored. THE EDIT: handheld push-in on the answer, the give, the reaction. THE GUARDRAILS: never over-promise on camera; get a quick release; treat people with respect, not as content props. CADENCE: a day of shooting yields several episodes."
+  },
+  {
+    rank:5, top5:true, emoji:"🚀", name:"Launch or Scrub",
+    one:"A founder gets 90 seconds to pitch, then a thumbs-up 'LAUNCH' or thumbs-down 'SCRUB' — mission-control style.",
+    ease:6, repeat:9, talent:8,
+    viral:"Binary verdicts are inherently clippable and argued-about; the countdown adds tension and a satisfying payoff stamp.",
+    fit:"Go/no-go is literal launch language. Making real backing decisions visible builds brand authority and a point of view.",
+    firstEp:"Three back-to-back 90-second pitches; two SCRUBs and one LAUNCH, each explained in one brutal line.",
+    recurring:["Launch or Scrub: AI startup edition","Launch or Scrub: the $0-revenue round","Launch or Scrub: solo founders only"],
+    three:"A red/green mission-console light, a 90-second timer ticking, the founder takes a breath.",
+    hook:"You've got 90 seconds. Then it's LAUNCH or SCRUB.",
+    visual:"Console lights (red/green), a big countdown timer, a 'LAUNCH'/'SCRUB' stamp slammed on screen at the verdict.",
+    different:"It's a verdict, not a chat. The brutal one-line reason — not the pitch — is the shareable payload.",
+    risk:"Can feel mean or arbitrary; verdicts must be sharp and fair or it reads as ego. Critique the idea, never humiliate the person.",
+    simpler:"One pitch per video, host gives the verdict to camera. No set — just the stamp graphic in edit.",
+    deep:"THE MECHANIC: a founder pitches against a 90-second clock. At zero, the host delivers a verdict — LAUNCH (thumbs up, green) or SCRUB (thumbs down, red) — plus exactly one brutal, fair sentence of reasoning. The one-liner is the content. THE SET: a couple of red/green console lights and a visible timer; can be physical or pure graphics. THE STAKES: keep them real — a LAUNCH should mean something (an intro, a follow-up, a slot in the pipeline), or the verdict feels hollow. THE HOST: decisive and fair; the reasoning has to teach, not just judge. THE EDIT: console light + 'you've got 90 seconds', compress the pitch, slam the stamp, land the one-liner. Stack three pitches per video for rhythm and comment-bait ('the third one was robbed'). THE FAIRNESS RULE: attack the idea, protect the human — that's the line between authority and bullying. CADENCE: high; pitches are an endless inbound supply."
+  },
+  {
+    rank:6, top5:false, emoji:"🚪", name:"The Airlock",
+    one:"60 seconds to pitch before the airlock door opens and you're out.",
+    ease:6, repeat:8, talent:7,
+    viral:"A literal ticking door = built-in stakes; people watch to see who makes it and who gets cut off mid-word.",
+    fit:"Airlock pressure mirrors startup pressure — space-native tension with a hard physical metaphor.",
+    firstEp:"Five founders, one airlock, 60 seconds each — who keeps talking when the timer hits zero?",
+    recurring:["The Airlock: AI founders","The Airlock: no-deck allowed","The Airlock: explain it to a 10-year-old"],
+    three:"A heavy door with a red countdown, a hiss of pressure, the founder steps into frame.",
+    hook:"60 seconds. When the door opens, you're done.",
+    visual:"A real heavy door or door graphic, pressure-hiss SFX, a red countdown bar.",
+    different:"Getting cut off mid-sentence IS the format — the cutoff is the content, not a failure.",
+    risk:"Gimmick fatigue if every episode is identical; needs varied guests and themes to stay alive."
+  },
+  {
+    rank:7, top5:false, emoji:"🫁", name:"Oxygen",
+    one:"How much runway — 'oxygen' — do you have left? Founders talk survival, not success.",
+    ease:7, repeat:8, talent:8,
+    viral:"Real numbers + real fear are rare and magnetic; the oxygen metaphor is instantly sticky.",
+    fit:"Survival in the void is the brand's emotional core — this is the anti-hype format.",
+    firstEp:"A founder with 6 weeks of cash left walks through exactly what they'd cut first.",
+    recurring:["Oxygen: 30 days left","Oxygen: bootstrapped and breathing","Oxygen: the month we almost suffocated"],
+    three:"An oxygen-gauge graphic dropping toward red, the founder's face, a quiet breath.",
+    hook:"How much oxygen do you have left?",
+    visual:"A depleting oxygen gauge, runway-as-air metaphor, muted palette, numbers on screen.",
+    different:"It's about the part founders hide — the runway math and the fear — with no flexing allowed.",
+    risk:"Founders may not share real numbers; can tip into doom-scrolling. Curate for honesty plus a glimmer of fight."
+  },
+  {
+    rank:8, top5:false, emoji:"🌍", name:"Re-entry",
+    one:"People who crashed, burned out, or got written off — and came back.",
+    ease:7, repeat:8, talent:8,
+    viral:"Comeback stories are universally shareable; 're-entry' is the most dangerous phase of any mission.",
+    fit:"Backing people the world counted out is the heart of the mission.",
+    firstEp:"A founder whose company died publicly explains how they rebuilt their reputation from zero.",
+    recurring:["Re-entry: after the very public failure","Re-entry: from burnout to build","Re-entry: the second company hit different"],
+    three:"A capsule heat-shield glow, then a face emerging, calm.",
+    hook:"Re-entry is when most missions burn up. They didn't.",
+    visual:"Heat-glow transition, before/after framing, warm landing palette.",
+    different:"Focuses on the mechanics of coming back — not redemption-porn tears.",
+    risk:"Overlaps with the comeback cliché; needs specificity and grit, not platitudes."
+  },
+  {
+    rank:9, top5:false, emoji:"🆘", name:"Mayday",
+    one:"The single day a founder almost quit — told in real time.",
+    ease:8, repeat:8, talent:7,
+    viral:"A specific 'almost quit' moment is intensely relatable to every builder watching.",
+    fit:"A distress signal in the void — pure survival theme, micro-scale.",
+    firstEp:"A founder recounts the morning they wrote the shutdown email but never sent it.",
+    recurring:["Mayday: the email I didn't send","Mayday: the investor that ghosted","Mayday: the day my co-founder left"],
+    three:"A red distress beacon blinking, static, the first line of the story.",
+    hook:"This is the day I almost called it.",
+    visual:"Red beacon blink, distress-signal motif, intimate single light.",
+    different:"One day, one decision — micro-scale, not a whole life story.",
+    risk:"Can blur with Black Box / Re-entry; the 'single day' constraint is what keeps it distinct."
+  },
+  {
+    rank:10, top5:false, emoji:"👽", name:"The Anomaly",
+    one:"Profiles of genuinely strange people with unfair, hard-to-explain potential.",
+    ease:6, repeat:9, talent:9,
+    viral:"Weird is watchable; 'how is this person real' drives shares.",
+    fit:"'Unusual people with unfair potential' is verbatim the thesis.",
+    firstEp:"A 17-year-old who taught themselves to build robots from landfill parts.",
+    recurring:["Anomaly: the kid who reads 5 books a day","Anomaly: the founder who's never had a job","Anomaly: the dropout running an empire from Discord"],
+    three:"A scanner sweep over the subject with 'ANOMALY DETECTED' and a blip.",
+    hook:"Our scanners flagged an anomaly.",
+    visual:"Scanner/HUD overlay, 'anomaly detected' framing, subject in their odd habitat.",
+    different:"Celebrates outliers, not polish — the anti-LinkedIn profile.",
+    risk:"Can feel othering or zoo-like; frame with awe and respect, never as a freak-show."
+  },
+  {
+    rank:11, top5:false, emoji:"🎤", name:"Zero-G Take",
+    one:"One mic, one bold question: give us your most dangerous take on building — we react live.",
+    ease:8, repeat:9, talent:8,
+    viral:"The hot-take format is proven (Subway Takes); the space twist makes it ownable.",
+    fit:"Rebellious, founder-first opinions — attracts sharp minds who want to argue.",
+    firstEp:"A marketer argues 'most startups should never raise money' and defends it under fire.",
+    recurring:["Zero-G Take: AI edition","Zero-G Take: hiring is broken","Zero-G Take: the unpopular growth opinion"],
+    three:"A floating mic / zero-gravity object, the guest leans in, the host raises an eyebrow.",
+    hook:"Give me your most dangerous take. Don't be safe.",
+    visual:"A single distinctive space-flagged mic, tight two-shot, floating-object motif.",
+    different:"Demands controversy on building specifically; the host's real reaction is the payload.",
+    risk:"Becomes a Subway Takes clone if the twist is thin — the signature mic and setting must carry it."
+  },
+  {
+    rank:12, top5:false, emoji:"⏲️", name:"48 Hours to Launch",
+    one:"A builder gets a tiny budget and 48 hours to ship something real.",
+    ease:4, repeat:7, talent:9,
+    viral:"Time-boxed building is binge-able; the ticking clock + a real shipped output is deeply satisfying.",
+    fit:"Launch, mission, constraint, survival — all native to the brand.",
+    firstEp:"An AI builder has 48h and $100 to launch a tool that gets its first paying user on camera.",
+    recurring:["48h: solo founder edition","48h: no-code only","48h: $0 budget"],
+    three:"A mission clock starting at 48:00:00, the builder cracks their knuckles.",
+    hook:"48 hours. Real money on the line. Ship or don't.",
+    visual:"A big mission countdown, a sprint montage, the 'first user' payoff moment.",
+    different:"Real shipping with a real outcome — not a hypothetical pitch.",
+    risk:"Production-heavy (multi-day shoot + edit); the hardest format to keep truly weekly."
+  },
+  {
+    rank:13, top5:false, emoji:"🗑️", name:"The Reject Pile",
+    one:"Ideas and founders everyone rejected — and why we'd back them anyway.",
+    ease:7, repeat:8, talent:8,
+    viral:"'Everyone was wrong about this' is irresistible contrarian bait.",
+    fit:"Backing what the world misses is the entire point of the studio.",
+    firstEp:"A founder rejected by 50 investors explains the idea — and you make the case for it.",
+    recurring:["Reject Pile: turned down by everyone","Reject Pile: 'too weird to fund'","Reject Pile: the idea that sounds dumb"],
+    three:"A 'REJECTED' stamped file pulled from a pile, then 'RECLASSIFIED'.",
+    hook:"Everyone passed on this. Here's why they're wrong.",
+    visual:"Rejected-stamp files, a 'reclassified' motif, contrarian lower-thirds.",
+    different:"Editorial point of view — you take a side, you don't just interview.",
+    risk:"Needs real conviction or it's empty contrarianism; you have to actually be right sometimes."
+  },
+  {
+    rank:14, top5:false, emoji:"🎒", name:"Survival Kit",
+    one:"If you crash-landed on an empty planet, what 3 things would you take to rebuild from zero?",
+    ease:8, repeat:8, talent:7,
+    viral:"Constraint + personality = endlessly debatable comment-bait.",
+    fit:"Survival, the unknown planet, starting from nothing — pure brand world.",
+    firstEp:"A founder picks one skill, one tool, one person — and defends it.",
+    recurring:["Survival Kit: AI builder edition","Survival Kit: marketers only","Survival Kit: $0 and one phone"],
+    three:"Three objects dropping onto a metal surface, a planet on the horizon.",
+    hook:"Empty planet. Start over. What 3 things do you take?",
+    visual:"A three-object layout, planet backdrop, inventory-card graphics.",
+    different:"A question format with a strong visual inventory motif, not just talking heads.",
+    risk:"Light and snackable — may not build depth alone; works best as a high-volume B-format."
+  },
+  {
+    rank:15, top5:false, emoji:"📓", name:"Flight Log",
+    one:"One builder, one camera, a raw video diary across a single mission or sprint.",
+    ease:7, repeat:7, talent:8,
+    viral:"Authentic serialized struggle builds loyal followings; each entry ends on a cliffhanger.",
+    fit:"A mission log is space-native; founder-first intimacy at its purest.",
+    firstEp:"Day 1 of a founder's launch week, filmed by themselves, unpolished.",
+    recurring:["Flight Log: Day 1","Flight Log: the week it broke","Flight Log: launch day"],
+    three:"A 'FLIGHT LOG — ENTRY 01' title card, the founder talking to their own camera.",
+    hook:"Flight log, entry one. Nobody knows if this works yet.",
+    visual:"Entry-numbered title cards, selfie-cam intimacy, timestamps.",
+    different:"Serialized and personal — you follow a person, not a topic.",
+    risk:"Lives or dies on the subject being compelling; it's a slow burn."
+  },
+  {
+    rank:16, top5:false, emoji:"🌌", name:"The Spacewalk",
+    one:"An untethered walk-and-talk where the most honest thing said wins.",
+    ease:7, repeat:7, talent:7,
+    viral:"Movement + candor reads as real; walking lowers people's guard.",
+    fit:"A spacewalk = exposure, risk, no safety net — honesty with the helmet off.",
+    firstEp:"A founder walks the city at night and says the thing they've never said publicly.",
+    recurring:["Spacewalk: the thing I've never admitted","Spacewalk: 3am thoughts","Spacewalk: what I'd tell my younger self"],
+    three:"A tracking shot from behind, city lights, the first honest line lands.",
+    hook:"Out here, untethered. Say the thing you can't say inside.",
+    visual:"Behind/tracking handheld, night exteriors, a single subject moving.",
+    different:"The 'untethered honesty' rule gives a generic walk-and-talk a reason to exist.",
+    risk:"Without the rule it's just a vlog — you must enforce the candor constraint."
+  },
+  {
+    rank:17, top5:false, emoji:"🧑‍🚀", name:"Crew Manifest",
+    one:"Builders assemble their dream mission crew — who's on board and who gets left behind.",
+    ease:8, repeat:7, talent:7,
+    viral:"Casting/drafting real people is debate fuel; everyone has opinions on who they'd pick.",
+    fit:"'Find exceptional people' becomes a literal game of assembling them.",
+    firstEp:"A founder drafts their 4-person startup crew from a wall of archetypes.",
+    recurring:["Crew Manifest: the AI mission","Crew Manifest: zero-budget launch","Crew Manifest: who do you cut?"],
+    three:"A crew board with empty slots, a hand placing the first name.",
+    hook:"You've got 4 seats. Who's on the mission?",
+    visual:"A crew-slot board, name cards, mission-patch aesthetic.",
+    different:"Turns 'what makes a great team' into a visual draft, not a lecture.",
+    risk:"Can get abstract; must be grounded with real named people and roles."
+  },
+  {
+    rank:18, top5:false, emoji:"🔟", name:"Countdown",
+    one:"Ten questions counting down from 10 — the last one always detonates.",
+    ease:8, repeat:8, talent:7,
+    viral:"A structured countdown + a known 'killer last question' builds anticipation every episode.",
+    fit:"A countdown is a launch sequence — native tension.",
+    firstEp:"A founder answers 10→1; the final question is 'what are you most afraid people will find out?'",
+    recurring:["Countdown: AI founders","Countdown: the marketer edition","Countdown: solo builders"],
+    three:"A giant '10' ticking down, the guest settles in.",
+    hook:"Ten questions. The last one always hurts.",
+    visual:"Giant descending numbers, escalating intensity, a signature final-question card.",
+    different:"The fixed killer last-question becomes the format's recurring hook.",
+    risk:"Q&A feels generic unless the questions are genuinely sharp — and the last one must deliver every time."
+  },
+  {
+    rank:19, top5:false, emoji:"🗺️", name:"Star Map",
+    one:"We trace one person's bizarre, non-linear path on a constellation map.",
+    ease:5, repeat:7, talent:7,
+    viral:"Visualized unconventional journeys are satisfying and screenshot-able.",
+    fit:"Star maps, navigation, finding a way through the unknown — pure brand visual.",
+    firstEp:"A founder's path from dropout → failed band → AI startup, drawn as connected stars.",
+    recurring:["Star Map: the non-linear founder","Star Map: from nothing to launch","Star Map: 5 careers in 5 years"],
+    three:"Stars connecting into a constellation over a face.",
+    hook:"Nobody's path is a straight line. Here's the map.",
+    visual:"An animated constellation timeline, connected-dots motif.",
+    different:"Visual storytelling of a path, not a CV recital.",
+    risk:"More edit-heavy (motion graphics); slower to produce. Hand-drawn version mitigates this."
+  },
+  {
+    rank:20, top5:false, emoji:"🎁", name:"The Drop",
+    one:"We surprise a deserving builder with exactly what they need — on camera.",
+    ease:5, repeat:6, talent:7,
+    viral:"Genuine surprise + generosity is the most-shared emotional content there is.",
+    fit:"Backing people before the world notices, made tangible and visible.",
+    firstEp:"A broke builder gets their first cloud credits + a mentor call dropped on them mid-conversation.",
+    recurring:["The Drop: cloud credits surprise","The Drop: the mentor call","The Drop: the resource they needed"],
+    three:"A supply package/capsule landing, the builder's confused face.",
+    hook:"We've got a drop for you. You didn't see this coming.",
+    visual:"A 'supply drop' package/capsule, real reaction, mission-patch wrap.",
+    different:"Real resources, real reactions — generosity as brand, not charity theater.",
+    risk:"Can feel performative or savior-y, and it's the lowest-repeatability format — it costs real money every episode."
+  }
+];
+
+const DAYS = [
+  ["Day 1","🧭 Lock the format bible + the signature asset","Write the one-page rules for Signal Found (what qualifies as a 'signal', the 90s structure, the sign-off). Order/borrow a real astronaut helmet for the Helmet pilot. Decide the sound signature (beep + static)."],
+  ["Day 2","🛰️ Source subjects (the hard part)","Hunt 6–8 genuinely under-the-radar builders via DMs, niche Discords, and referrals. Open a public 'send us a signal' inbox. Book 3 confirmed for the week + 1–2 founders willing to do the Helmet pilot."],
+  ["Day 3","🧰 Build the kit once","Make the overlay pack: static-to-face resolve, 'SIGNAL #___' lower-third, beep SFX, sign-off stamp. Set one repeatable lighting setup. Write the Helmet rule card + the host's pressure questions. Lock a shot list."],
+  ["Day 4","🎥 Shoot Day A — Signal Found ×3","Film (or collect self-shot footage from) 3 signal subjects back-to-back. Capture each in their real environment. Get the 3-second cold-open right for every one — that's where retention is won or lost."],
+  ["Day 5","🧑‍🚀 Shoot Day B — Helmet pilot","Run 1–2 Helmet trials. Test the unclip moment — does it land emotionally? Stress-test the host's authority. If the helmet looks cheap on camera, note it and fix before scaling."],
+  ["Day 6","✂️ Edit + lock templates","Cut 3 Signal episodes + 1 Helmet pilot to 30–75s vertical. Lock a reusable cold-open template so future episodes are assembly, not invention. Caption everything; sound-design the beeps and stamps."],
+  ["Day 7","🚀 Publish, measure, decide","Publish 1 Signal episode, schedule the other 2. Watch 3-second retention and shares obsessively. Decide: does Signal Found earn a weekly slot, and is the Helmet pilot strong enough to greenlight as the flagship?"]
+];
+
+/* ───────────────── RENDER ───────────────── */
+const critGrid = document.getElementById('critGrid');
+CRITERIA.forEach((c,i)=>{
+  const el=document.createElement('div'); el.className='crit';
+  el.innerHTML=`<div class="n">CRITERION ${String(i+1).padStart(2,'0')}</div><h3>${c[0]} ${c[1]}</h3><p>${c[2]}</p>`;
+  critGrid.appendChild(el);
+});
+
+const bracketEl=document.getElementById('bracket');
+BRACKET.forEach(m=>{
+  const aWin=m[2]==='a', tie=m[2]==='tie';
+  const wrap=document.createElement('div');
+  const aCls=tie?'a winner':(aWin?'a winner':'a loser');
+  const bCls=tie?'b winner':(aWin?'b loser':'b winner');
+  wrap.innerHTML=`<div class="match">
+      <div class="${aCls}">${aWin||tie?'✅ ':''}${m[0]}</div>
+      <div class="vs">${tie?'TIE':'VS'}</div>
+      <div class="${bCls}">${(!aWin||tie)?'':''}${tie?'✅ ':''}${m[1]}</div>
+    </div>
+    <div class="match-why">${m[3]}</div>`;
+  bracketEl.appendChild(wrap);
+});
+
+const ideasEl=document.getElementById('ideas');
+IDEAS.forEach(d=>{
+  const el=document.createElement('article');
+  el.className='idea'+(d.top5?' top5':'');
+  const recurring=d.recurring.map(r=>`<span class="pill">${r}</span>`).join('');
+  const deepBlock=d.deep?`<div class="deep"><div class="k">🔬 How it actually works (Top 5 deep dive)</div><div class="v">${d.deep}</div></div>`:'';
+  el.innerHTML=`
+    <div class="idea-head">
+      <div class="rank">${d.rank}</div>
+      <div class="main">
+        <div class="title"><span class="emoji">${d.emoji}</span><h3>${d.name}</h3>${d.top5?'<span class="star">⭐ TOP 5</span>':''}</div>
+        <div class="one">${d.one}</div>
+        <div class="scores">
+          <span class="score ease">🎥 ease <b>${d.ease}</b>/10</span>
+          <span class="score repeat">🔁 repeat <b>${d.repeat}</b>/10</span>
+          <span class="score talent">🧲 talent <b>${d.talent}</b>/10</span>
+        </div>
+      </div>
+      <div class="chev">▼</div>
+    </div>
+    <div class="idea-body">
+      <div class="field"><div class="k">🎬 Hook line</div><div class="hookline">“${d.hook}”</div></div>
+      <div class="field three"><div class="k">First 3 seconds</div><div class="v">${d.three}</div></div>
+      <div class="field viral"><div class="k">Why it could go viral</div><div class="v muted">${d.viral}</div></div>
+      <div class="field fit"><div class="k">Why it fits Lost Astronaut</div><div class="v muted">${d.fit}</div></div>
+      <div class="field"><div class="k">👁️ Visual signature</div><div class="v muted">${d.visual}</div></div>
+      <div class="field"><div class="k">⚡ What makes it different from basic startup content</div><div class="v muted">${d.different}</div></div>
+      <div class="field"><div class="k">▶️ Example first episode</div><div class="v muted">${d.firstEp}</div></div>
+      <div class="field"><div class="k">🔁 Recurring episode titles</div><div class="pills">${recurring}</div></div>
+      <div class="field risk"><div class="k">Risks / why it might flop</div><div class="v muted">${d.risk}</div></div>
+      ${d.simpler?`<div class="field simpler"><div class="k">How to make it simpler</div><div class="v muted">${d.simpler}</div></div>`:''}
+      ${deepBlock}
+    </div>`;
+  el.querySelector('.idea-head').addEventListener('click',()=>el.classList.toggle('open'));
+  ideasEl.appendChild(el);
+});
+// open the #1 by default
+ideasEl.querySelector('.idea')?.classList.add('open');
+
+const daysEl=document.getElementById('days');
+DAYS.forEach(d=>{
+  const el=document.createElement('div'); el.className='day';
+  el.innerHTML=`<div class="d">${d[0]}</div><div><h4>${d[1]}</h4><p>${d[2]}</p></div>`;
+  daysEl.appendChild(el);
+});
+</script>
+</body>
+</html>
