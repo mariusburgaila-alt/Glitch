@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🔥 Viral Video Vault — Concepts & Ideas</title>
+<style>
+  :root{
+    --bg:#0b0b0f;
+    --bg-soft:#13131a;
+    --card:#181820;
+    --card-hover:#1f1f2b;
+    --line:#2a2a36;
+    --text:#ECECF1;
+    --muted:#9a9aae;
+    --pink:#ff5fa2;
+    --purple:#a78bfa;
+    --green:#34d399;
+    --yellow:#fbbf24;
+    --blue:#60a5fa;
+    --orange:#fb923c;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ scroll-behavior:smooth; }
+
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(167,139,250,.18), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(255,95,162,.15), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:5rem;
+  }
+
+  .wrap{ max-width:920px; margin:0 auto; padding:0 1.25rem; }
+
+  /* ---------- HERO ---------- */
+  header.hero{
+    text-align:center;
+    padding:5.5rem 1.25rem 3rem;
+  }
+  .badge{
+    display:inline-block;
+    font-size:.8rem;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--purple);
+    border:1px solid var(--line);
+    background:rgba(167,139,250,.08);
+    border-radius:999px;
+    padding:.4rem .9rem;
+    margin-bottom:1.5rem;
+  }
+  .hero h1{
+    font-size:clamp(2.4rem,6vw,4rem);
+    line-height:1.05;
+    font-weight:800;
+    letter-spacing:-.02em;
+    margin-bottom:1rem;
+  }
+  .hero h1 .grad{
+    background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .hero p{
+    font-size:clamp(1.05rem,2.5vw,1.3rem);
+    color:var(--muted);
+    max-width:600px;
+    margin:0 auto 2rem;
+  }
+  .hero .cta{
+    display:inline-flex;
+    gap:.5rem;
+    align-items:center;
+    font-weight:600;
+    font-size:1rem;
+    color:var(--bg);
+    background:linear-gradient(90deg,var(--pink),var(--purple));
+    border:none;
+    border-radius:999px;
+    padding:.85rem 1.6rem;
+    text-decoration:none;
+    transition:transform .15s ease, filter .15s ease;
+  }
+  .hero .cta:hover{ transform:translateY(-2px); filter:brightness(1.08); }
+
+  /* ---------- SEARCH / FILTER ---------- */
+  .toolbar{
+    position:sticky;
+    top:0;
+    z-index:20;
+    background:rgba(11,11,15,.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:.9rem 0;
+    margin-bottom:2.5rem;
+  }
+  .toolbar .wrap{ display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+  #search{
+    flex:1 1 240px;
+    min-width:0;
+    background:var(--bg-soft);
+    border:1px solid var(--line);
+    border-radius:.7rem;
+    color:var(--text);
+    font-size:.95rem;
+    padding:.65rem .9rem;
+    outline:none;
+  }
+  #search:focus{ border-color:var(--purple); }
+  .filters{ display:flex; flex-wrap:wrap; gap:.4rem; }
+  .filter-btn{
+    font-size:.82rem;
+    color:var(--muted);
+    background:var(--bg-soft);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:.45rem .85rem;
+    cursor:pointer;
+    transition:all .15s ease;
+    white-space:nowrap;
+  }
+  .filter-btn:hover{ color:var(--text); border-color:var(--muted); }
+  .filter-btn.active{
+    color:var(--bg);
+    background:var(--purple);
+    border-color:var(--purple);
+    font-weight:600;
+  }
+
+  /* ---------- IDEAS ---------- */
+  .section-title{
+    font-size:1.4rem;
+    font-weight:700;
+    margin:2.5rem 0 1rem;
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+  }
+  .grid{ display:grid; gap:1rem; }
+
+  .idea{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:1rem;
+    padding:1.3rem 1.4rem;
+    transition:transform .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .idea:hover{
+    transform:translateY(-3px);
+    background:var(--card-hover);
+    border-color:var(--purple);
+  }
+  .idea .top{
+    display:flex;
+    align-items:baseline;
+    gap:.6rem;
+    margin-bottom:.5rem;
+  }
+  .idea .emoji{ font-size:1.6rem; line-height:1; }
+  .idea h3{ font-size:1.15rem; font-weight:700; }
+  .idea .hook{
+    color:var(--text);
+    font-size:1rem;
+    margin:.4rem 0 .7rem;
+  }
+  .idea .hook b{ color:var(--yellow); font-weight:700; }
+  .idea .why{
+    color:var(--muted);
+    font-size:.9rem;
+    margin-bottom:.85rem;
+  }
+  .idea .why::before{ content:"💡 "; }
+  .tags{ display:flex; flex-wrap:wrap; gap:.4rem; }
+  .tag{
+    font-size:.72rem;
+    color:var(--muted);
+    background:var(--bg-soft);
+    border:1px solid var(--line);
+    border-radius:.4rem;
+    padding:.2rem .55rem;
+  }
+  .tag.platform{ color:var(--pink); border-color:rgba(255,95,162,.35); }
+  .tag.format{ color:var(--green); border-color:rgba(52,211,153,.35); }
+  .tag.effort{ color:var(--orange); border-color:rgba(251,146,60,.35); }
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:3rem 1rem;
+    display:none;
+  }
+
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:.85rem;
+    margin-top:4rem;
+    padding-top:2rem;
+    border-top:1px solid var(--line);
+  }
+  footer .wrap a{ color:var(--purple); text-decoration:none; }
+</style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="badge">🎬 Idea Vault</div>
+    <h1>Viral Video <span class="grad">Concepts &amp; Ideas</span></h1>
+    <p>A clean, scannable home for every hook, format and concept worth filming. No clutter — just the ideas. ✨</p>
+    <a class="cta" href="#ideas">Browse the ideas 👇</a>
+  </header>
+
+  <div class="toolbar">
+    <div class="wrap">
+      <input id="search" type="text" placeholder="🔎 Search ideas, hooks, tags…" autocomplete="off" />
+      <div class="filters" id="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="TikTok">📱 TikTok</button>
+        <button class="filter-btn" data-filter="YouTube">▶️ YouTube</button>
+        <button class="filter-btn" data-filter="Reels">📸 Reels</button>
+        <button class="filter-btn" data-filter="Low effort">⚡ Quick wins</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="wrap" id="ideas">
+    <h2 class="section-title">🔥 Trending-ready concepts</h2>
+    <div class="grid" id="grid"><!-- ideas injected here --></div>
+    <div class="empty" id="empty">🤷 No ideas match that search. Try another keyword.</div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      Built for fast scanning. Edit the <code>IDEAS</code> array in this file to add your own. 🚀<br/>
+      <a href="index.html">← Back to Glitch</a>
+    </div>
+  </footer>
+
+<script>
+  // ─────────────────────────────────────────────────────────
+  // Add your own ideas here. Each one shows up as a card.
+  // tags: platform (TikTok/YouTube/Reels), format, effort
+  // ─────────────────────────────────────────────────────────
+  const IDEAS = [
+    {
+      emoji:"⏱️",
+      title:"The 5-Second Rule",
+      hook:"Open with the <b>result first</b>, then rewind: \"Here's how I went from 0 to this…\"",
+      why:"Front-loading the payoff stops the scroll before the algorithm gives up on you.",
+      tags:["TikTok","Reels","Hook-driven","Low effort"]
+    },
+    {
+      emoji:"🤫",
+      title:"The Forbidden Tip",
+      hook:"\"They don't want you to know this, but…\" then drop one genuinely useful trick.",
+      why:"Curiosity + insider framing = high save and share rate.",
+      tags:["TikTok","Educational","Low effort"]
+    },
+    {
+      emoji:"🔁",
+      title:"Loop It Seamlessly",
+      hook:"End the video on the exact frame it started — viewers re-watch without realizing.",
+      why:"Loops inflate watch-time, the single strongest ranking signal.",
+      tags:["Reels","TikTok","Editing","Medium effort"]
+    },
+    {
+      emoji:"🆚",
+      title:"This vs That",
+      hook:"Side-by-side comparison: cheap vs expensive, old way vs new way, expectation vs reality.",
+      why:"Built-in tension keeps people watching to see which wins.",
+      tags:["YouTube","Reels","Comparison","Medium effort"]
+    },
+    {
+      emoji:"📉",
+      title:"The Honest Failure",
+      hook:"\"I tried this for 30 days and it completely flopped — here's what I learned.\"",
+      why:"Vulnerability beats highlight reels. People trust (and share) honesty.",
+      tags:["YouTube","Storytelling","High effort"]
+    },
+    {
+      emoji:"🎯",
+      title:"One Mistake Everyone Makes",
+      hook:"Point at a super-common error in your niche, then fix it in 15 seconds.",
+      why:"Viewers tag friends who make that exact mistake. Free distribution.",
+      tags:["TikTok","Reels","Educational","Low effort"]
+    },
+    {
+      emoji:"🧪",
+      title:"The Live Experiment",
+      hook:"\"Let's test if this actually works…\" and film the genuine, unscripted result.",
+      why:"Unknown outcome = viewers stay for the reveal.",
+      tags:["YouTube","Reels","Experiment","Medium effort"]
+    },
+    {
+      emoji:"📦",
+      title:"What's In My ___",
+      hook:"Unbox or reveal the contents of something people are curious about (bag, fridge, setup).",
+      why:"Voyeurism is undefeated. Endlessly repeatable format.",
+      tags:["TikTok","Reels","Day-in-life","Low effort"]
+    },
+    {
+      emoji:"🗣️",
+      title:"Reply to a Comment",
+      hook:"Turn a spicy or curious comment into its own full video.",
+      why:"Built-in proof people care about the topic — and it feels personal.",
+      tags:["TikTok","YouTube","Community","Low effort"]
+    },
+    {
+      emoji:"📚",
+      title:"The Mini List",
+      hook:"\"3 things I wish I knew before…\" — punchy, numbered, fast cuts.",
+      why:"Lists are skimmable and promise a clear, finite payoff.",
+      tags:["Reels","TikTok","Educational","Low effort"]
+    },
+    {
+      emoji:"🎬",
+      title:"Behind the Scenes",
+      hook:"Show the messy reality behind a polished thing people already admire.",
+      why:"Contrast creates connection — and humanizes your brand.",
+      tags:["YouTube","Reels","Storytelling","Medium effort"]
+    },
+    {
+      emoji:"⚡",
+      title:"Speed-Run a Skill",
+      hook:"Compress hours of effort into a satisfying 20-second timelapse with a beat drop.",
+      why:"Satisfying + impressive = instant rewatch and shares.",
+      tags:["TikTok","Reels","Editing","Medium effort"]
+    }
+  ];
+
+  // ─────────────────────────────────────────────────────────
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  const search = document.getElementById('search');
+  const filters = document.getElementById('filters');
+  let activeFilter = 'all';
+
+  function tagClass(t){
+    const platforms = ['TikTok','YouTube','Reels'];
+    const efforts = ['Low effort','Medium effort','High effort'];
+    if(platforms.includes(t)) return 'tag platform';
+    if(efforts.includes(t)) return 'tag effort';
+    return 'tag format';
+  }
+
+  function render(){
+    const q = search.value.trim().toLowerCase();
+    let shown = 0;
+    grid.innerHTML = '';
+    IDEAS.forEach(idea => {
+      const haystack = (idea.title + ' ' + idea.hook + ' ' + idea.why + ' ' + idea.tags.join(' ')).toLowerCase();
+      const matchSearch = !q || haystack.includes(q);
+      const matchFilter = activeFilter === 'all' || idea.tags.includes(activeFilter);
+      if(!matchSearch || !matchFilter) return;
+      shown++;
+      const el = document.createElement('article');
+      el.className = 'idea';
+      el.innerHTML = `
+        <div class="top">
+          <span class="emoji">${idea.emoji}</span>
+          <h3>${idea.title}</h3>
+        </div>
+        <p class="hook">${idea.hook}</p>
+        <p class="why">${idea.why}</p>
+        <div class="tags">${idea.tags.map(t => `<span class="${tagClass(t)}">${t}</span>`).join('')}</div>
+      `;
+      grid.appendChild(el);
+    });
+    empty.style.display = shown === 0 ? 'block' : 'none';
+  }
+
+  search.addEventListener('input', render);
+  filters.addEventListener('click', e => {
+    const btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
